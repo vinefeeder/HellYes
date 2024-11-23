@@ -11,7 +11,7 @@ A generic L3 downloader for DRM content which comes in two versions
 *   allhell3gui.py
 
 Allhell3.py is coded for the all browsers (tested on Chrome, Firefox and Edge) and is supplied very nearly ready to download all media protected by widevine.
-You just need to provide a working Content Decryption Module and call it Device.wvd and place it in the top level folder of HellYes
+You just need to provide a working Content Decryption Module and call it device.wvd and place it in the top level folder of HellYes
 
 allhell3gui.py is a Graphical User Interface version of allhell3.py.
 
