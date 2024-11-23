@@ -1,0 +1,40 @@
+You do this. 
+[LIST=1]
+[*]You run start.html - it is in the HellYes folder. Click to open or just drag to a browser to view. 
+[*]You read it carefully! Do not just run your eyes over it - read the words, understand what it says. After each paragraph stop and ask yourself 'do I understand that?' If not go back if yes , go on.
+[*]You do what it says; you install software into a folder called binaries and add that folder to your system's PATH (Environment Variable in Windoze)
+[*]You make sure each program is installed correctly and available in PATH (Try calling each one from the command line in Terminal)
+[*]You prepare to download a video
+[*]Find the regex in the start.html page and copy it.
+[*]Go to the website with the video you want.
+[*]Load the video page.
+[*]Press Shift+CTRl+C to open web developet tools.
+[*]Navigate to the Network tab
+[*]Enter the copied regex to the filter box.
+[*]Press Ctrl+R to refresh the video page and interact to play the video
+[*]The network page will display the mpd and its fetch method will be GET - that is the mpd 
+[*]Click on that mpd link to open a menu -select 'Copy Value' and the  choose and click 'Copy url'.
+[ATTACH]80134[/ATTACH]
+[*]In a terminal window, in the HellYes folder, type 'python3 hell3.py'  or just 'python hell3.py'  depending on your Operating System.
+[*]Enter the mpd at the prompt. Ctrl +V should paste it and you will see the mpd echoed to screen.
+[ATTACH]80135[/ATTACH]
+[*]Select the license URL its fetch method will be POST; select 'Copy Value'  -> 'Copy as Curl' in the menu-boxes
+[ATTACH]80136[/ATTACH]
+[*]With cURL copied go back to hell3.py and paste in response to the prompt. Before you paste (Ctrl+v) the screen looks like this:-
+[ATTACH]80138[/ATTACH]
+[*]And after you paste the screen looks like this:-
+[ATTACH]80139[/ATTACH]
+[*]Absolutely NOTHING HAPPENS ON THE SCREEN. The curl may contain gibberish which could mess up your display so it does not echo to screen.
+[*]But after you press 'ENTER'  the program interprets the data and produces a key
+[ATTACH]80140[/ATTACH]
+[*]You can stop here if you just need the key for use elsewhere.
+[*]Or enter the name for your video to be saved as - what will you call it? 
+[*]Just do not use spaces in the name:- for example My_Fair_City_23_06_2024  or'video_from_RTE   - you choose whatever you want here.
+[ATTACH]80141[/ATTACH]
+[*]The script responds and prepares to download but offers the download command for users who may wish to bulk download later or modify the N_m3u8DL-RE command.
+[*] you can choose to stop here or continue
+[*]Continuing runs the downloader
+[*]The downloader pauses for you to select the video resolution you want. To accept the default choices (best video audio streams) just press ENTER.
+[*]The video now downloads 
+[ATTACH]80143[/ATTACH]
+[/LIST]
