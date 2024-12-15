@@ -1,6 +1,6 @@
 # HellYes
 
-A widevine Downloader with multi-browser support for Linux and Windows
+A Widevine Downloader with multi-browser support for Linux and Windows
 ======================================================================
 
 ### Overview
