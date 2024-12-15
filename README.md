@@ -42,7 +42,7 @@ You start a python script with 'python allhell3.py' written in a terminal or 'py
 
 But python scripts typically use modules that are imported to the script
 
-Usuallly we use 'python install module-name' But if the script author has provided a requirements.txt file, then we can use 'pip install -r requirements.txt', so use that here.
+Usuallly we use 'pip install module-name' But if the script author has provided a requirements.txt file, then we can use 'pip install -r requirements.txt', so use that here.
 
 If the bare pip install does not work, try 'python3 pip install -r requirements.txt', or failing that 'python -m pip install -r requirements.txt'. Google for 'using pip' if stuck.
 
