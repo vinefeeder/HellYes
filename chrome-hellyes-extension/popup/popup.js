@@ -1,20 +1,55 @@
-// Get the title when the popup opens
 document.addEventListener("DOMContentLoaded", () => {
-    chrome.runtime.sendMessage({ action: "getTitle" }, (response) => {
-        if (response && response.title && response.title !== "") {
-            document.getElementById("title").value = response.title;
+    const titleInput = document.getElementById("title");
+    const manifestCheckbox = document.getElementById("manifestCheckbox");
+    const curlCheckbox = document.getElementById("curlCommand");
+    const sendButton = document.getElementById("sendButton");
+
+    // Function to check if the button should be enabled
+    function updateButtonState() {
+        sendButton.disabled = !(manifestCheckbox.checked && curlCheckbox.checked && titleInput.value.trim() !== "");
+    }
+
+    // Function to update checkbox appearance (green for checked, red for unchecked)
+    function updateCheckboxStyle(checkbox, isChecked) {
+        checkbox.checked = isChecked;
+        checkbox.style.cursor = "default";
+        checkbox.style.borderColor = isChecked ? "green" : "red";
+    }
+
+    // Get the manifest URL status and title when the popup opens
+    chrome.runtime.sendMessage({ action: "getTabData" }, (response) => {
+        if (response) {
+            // Set title if available
+            if (response.title) {
+                titleInput.value = response.title;
+            }
+
+            // Check if manifest URL is present
+            updateCheckboxStyle(manifestCheckbox, !!response.manifestUrl);
+
+            // Check if cURL command is present
+            updateCheckboxStyle(curlCheckbox, !!response.curlCommand);
+
+            // Update button state initially
+            updateButtonState();
         }
     });
-});
 
-document.getElementById("sendButton").addEventListener("click", () => {
-    const titleValue = document.getElementById("title").value;
-    chrome.runtime.sendMessage({ action: "sendData", title: titleValue }, (response) => {
-        const resultDiv = document.getElementById("result");
-        if (response && response.status === "success") {
-            resultDiv.textContent = "Data sent successfully!";
-        } else {
-            resultDiv.textContent = "Error: " + (response.error || "Unknown error");
-        }
+    // Enable button only when all conditions are met
+    titleInput.addEventListener("input", updateButtonState);
+    manifestCheckbox.addEventListener("change", updateButtonState);
+    curlCheckbox.addEventListener("change", updateButtonState);
+
+    // Send data when button is clicked
+    sendButton.addEventListener("click", () => {
+        const titleValue = titleInput.value;
+        chrome.runtime.sendMessage({ action: "sendData", title: titleValue }, (response) => {
+            const resultDiv = document.getElementById("result");
+            if (response && response.status === "success") {
+                resultDiv.textContent = "Data sent successfully!";
+            } else {
+                resultDiv.textContent = "Error: " + (response.error || "Unknown error");
+            }
+        });
     });
 });

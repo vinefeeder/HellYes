@@ -6,9 +6,9 @@
     "description": "An interface to automatically gather the data needed to run HellYes",
     "version": "0.0.1",
     "icons": {
-        "16": "logo/logo.png",
-        "48": "logo/logo.png",
-        "128": "logo/logo.png"
+        "16": "logo/hellno.png",
+        "48": "logo/hellno.png",
+        "128": "logo/hellno.png"
     },
     "options_page": "settings/settings.html",
     "action": {
