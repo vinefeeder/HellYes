@@ -5,3 +5,4 @@ PyQt6_sip==13.8.0
 pywidevine==1.8.0
 termcolor==2.4.0
 yt_dlp==2024.8.1
+pexpect==4.9.0

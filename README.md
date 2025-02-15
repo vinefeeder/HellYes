@@ -114,6 +114,12 @@ Note carefully: allhell3.py.py uses Ctrl + D to enter the cURL on Linux and Ctrl
 Part of the process of fetching decryption-keys involves the swapping of keys in a Diffie-Helman type process, to validate the authority of a user. Some servers with old hardware use keys that are small enough to crack by brute force. So most systems force the use of larger, more secure, keys.  
 The system will then reject the connection and complain 'keys are too small'. If that happens use the included script allhell3gui\_lowerDH.py which attempts to force the system to accept smaller keys.
 
+#### Chrome Extension
+## This was tested only on ubuntu and its not working on windows for sure...
+This extension tries to get the manifest and license url from the current page
+To install the extension you should access chrome://extensions/ enable dev mode and then loaded Extend Chrome Extension, after that you should save the ID
+Then run the install.sh it will ask you for the extension ID to install the NativeMessage on your system
+Once the install.sh run you should have your HellYes installed and expecting to receive calls from the browser extension
 
 Happy allhell3.py!  
  

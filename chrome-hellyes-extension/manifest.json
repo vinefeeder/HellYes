@@ -1,0 +1,36 @@
+{
+    // Comments are accepted in the manifest, even though it is JSON.
+    "manifest_version": 3,
+    "key": "offoambjomnjjiadnjkpecpjicglbebd",
+    "name": "HellYes!",
+    "description": "An interface to automatically gather the data needed to run HellYes",
+    "version": "0.0.1",
+    "icons": {
+        "16": "logo/logo.png",
+        "48": "logo/logo.png",
+        "128": "logo/logo.png"
+    },
+    "options_page": "settings/settings.html",
+    "action": {
+        "default_title": "HellYes!",
+        "default_popup": "popup/popup.html"
+    },
+    "permissions": [
+        "webRequest",
+        "webRequestBlocking",
+        "nativeMessaging"
+    ],
+    "host_permissions": [
+        "*://*/*"
+    ],
+    "background": {
+        "service_worker": "service-worker.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["contentScript.js"],
+            "run_at": "document_idle"
+        }
+    ]
+}
