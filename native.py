@@ -31,15 +31,15 @@ def open_terminal_and_run_script():
     """
     commands = [
         # Debian-based systems often have x-terminal-emulator.
-        ["x-terminal-emulator", "-e", "./myenv/bin/python3", "./expect.py"],
+        ["x-terminal-emulator", "-e", "./venv/bin/python3", "./expect.py"],
         # GNOME terminal.
-        ["gnome-terminal", "--", "python3", "./expect.py"],
+        ["gnome-terminal", "--", "./venv/bin/python3", "./expect.py"],
         # KDE Konsole.
-        ["konsole", "-e", "python3", "./expect.py"],
+        ["konsole", "-e", "./venv/bin/python3", "./expect.py"],
         # XFCE terminal.
-        ["xfce4-terminal", "--command=python3 ./expect.py"],
+        ["xfce4-terminal", "--command=./venv/bin/python3 ./expect.py"],
         # xterm is widely available.
-        ["xterm", "-e", "python3", "./expect.py"]
+        ["xterm", "-e", "./venv/bin/python3", "./expect.py"]
     ]
     for cmd in commands:
         try:
