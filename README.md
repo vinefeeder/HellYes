@@ -115,7 +115,7 @@ Part of the process of fetching decryption-keys involves the swapping of keys in
 The system will then reject the connection and complain 'keys are too small'. If that happens use the included script allhell3gui\_lowerDH.py which attempts to force the system to accept smaller keys.
 
 #### Chrome Extension
-## This was tested only on ubuntu and its not working on windows for sure...
+## This was tested only on kubuntu and its not working on windows for sure...
 This extension tries to get the manifest and license url from the current page
 To install the extension you should access chrome://extensions/ enable dev mode and then loaded Extend Chrome Extension, after that you should save the ID
 Then run the install.sh it will ask you for the extension ID to install the NativeMessage on your system
