@@ -45,7 +45,7 @@ from pathlib import Path
 from termcolor import colored
 import pyfiglet as PF
 import sys
-
+import json
 
 
 ####################
@@ -399,8 +399,32 @@ def get_hidden_input(prompt):
     input_lines.append(current_line)  # ensure --data-raw is captured
     return " ".join(input_lines)
 
+def load_config(json_file):
+    """Load configuration from the given JSON file."""
+    try:
+        with open(json_file, 'r') as f:
+            config = json.load(f)
+    except Exception as e:
+        print(f"Error loading JSON config: {e}")
+        sys.exit(1)
+
+    try:
+        mpd_url = config["manifestUrl"]
+        curl_request = config["licenseCurl"]
+        video = config["title"]
+    except KeyError as e:
+        print(f"Missing key in config: {e}")
+        sys.exit(1)
+
+    # Read the deleteMe flag, defaulting to False if not present.
+    delete_json = config.get("deleteMe", False)
+    return mpd_url, curl_request, video, delete_json
 
 if __name__ == "__main__":
+    # Initialize variables
+    mpd_url = cURL = video = None
+    delete_json = False  # default value
+
     title = PF.figlet_format(' allhell3 ', font='smslant')
     print(colored(title, 'green'))
     strapline = "A Generic L3 Downloader:\n"
@@ -409,8 +433,15 @@ if __name__ == "__main__":
     print(colored(strapline, 'red'))
     strapline = "!!This version is for ALL browsers!!.\n\n"
     print(colored(strapline, 'cyan'))
-    print('Prepare three inputs.\n 1. MPD URL\n 2. cURL of license server request\n 3. Video name\n\n')
-    mpd_url = input("MPD URL? ")
+    # Check if a JSON config file was provided
+    if len(sys.argv) > 1:
+        config_file = sys.argv[1]
+        mpd_url, cURL, video, delete_json = load_config(config_file)
+    else:
+        print('Prepare three inputs.\n 1. MPD URL\n 2. cURL of license server request\n 3. Video name\n\n')
+
+    if not mpd_url:
+        mpd_url = input("MPD URL? ")
     mpd_content = fetch_mpd_content(mpd_url)
     if (mpd_content):
         pssh = extract_or_generate_pssh(mpd_content)
@@ -422,7 +453,8 @@ if __name__ == "__main__":
     print("Next.\n1. Paste your cURL of license request.\n2. Press Ctrl-D (Linux) or Ctrl-Z (Windows) to save it.")
 
     # multi OS support for getting hidden multi-line input from different browsers
-    cURL = get_hidden_input("cURL? ")
+    if not cURL:
+        cURL = get_hidden_input("cURL? ")
 
     # extract license URL, method, headers, and data
     lic_url, method, headers, data =  parse_curl(cURL)
@@ -430,7 +462,8 @@ if __name__ == "__main__":
     key_results = get_key(pssh, lic_url)
     print('\n' + key_results + '\n')
     # ask user for video name
-    video = input("Save Video as? ")
+    if not video:
+        video = input("Save Video as? ")
     # use N_m3u8DL-RE to download video provide the  command
     print(f"\nN_m3u8DL-RE '{mpd_url}' {key_results} --save-name {video} -M:format=mkv:muxer=mkvmerge")
     # Split key_results into lines and then split each line into components
@@ -455,3 +488,11 @@ if __name__ == "__main__":
     print(f"\n{command}\n")
     input("Press Enter to run the download-command or ctrl+C to exit.")
     subprocess.run(command)
+
+    # If the json configuration file has "deleteMe" set to True, delete the file.
+    if delete_json and config_file:
+        try:
+            os.remove(config_file)
+            print(f"Configuration file '{config_file}' deleted.")
+        except Exception as e:
+            print(f"Failed to delete configuration file: {e}")
