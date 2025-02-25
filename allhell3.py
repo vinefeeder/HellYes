@@ -46,7 +46,7 @@ from termcolor import colored
 import pyfiglet as PF
 import sys
 import json
-
+import re
 
 ####################
 #BE SURE TO EDIT THIS to use a different WVD !!!!
@@ -230,7 +230,7 @@ def parse_curl(curl_command):
     tuple: A tuple containing the URL, method, headers (as a dictionary), and data.
     """
     # Extract URL
-    url_match = re.search(r"curl\s+'(.*?)'", curl_command)
+    url_match = re.search(r"curl\s+(?:-X\s+\w+\s+)?'([^']+)'", curl_command)
     url = url_match.group(1) if url_match else ""
     print(f"URL: {url}")
 
