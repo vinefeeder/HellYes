@@ -1,5 +1,4 @@
 {
-    // Comments are accepted in the manifest, even though it is JSON.
     "manifest_version": 3,
     "key": "offoambjomnjjiadnjkpecpjicglbebd",
     "name": "HellYes!",
