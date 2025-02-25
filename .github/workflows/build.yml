@@ -23,7 +23,7 @@ jobs:
         run: echo "${{ secrets.PRIVATE_KEY }}" > private.pem
 
       - name: Pack Chrome Extension
-        run: npx crx pack browser-extension --pem=private.pem
+        run: npx crx pack browser-extension --p=private.pem
         # Adjust the folder name if your extension is located elsewhere.
 
       - name: Create GitHub Release
