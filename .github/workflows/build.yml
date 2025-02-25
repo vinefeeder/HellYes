@@ -69,8 +69,8 @@ jobs:
           --api-key ${{ secrets.FIREFOX_ISSUER }} \
           --api-secret ${{ secrets.FIREFOX_SECRET }}
 
-      - name: Rename Firefox ZIP
-        run: mv firefox-artifacts/*.zip hellyes-firefox.xpi
+      - name: Rename Firefox XPI
+        run: mv firefox-artifacts/*.xpi hellyes-firefox.xpi
 
       - name: Upload Firefox Asset to Release
         uses: softprops/action-gh-release@v1
