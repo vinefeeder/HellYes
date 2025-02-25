@@ -1,0 +1,45 @@
+name: Build and Release Chrome Extension
+
+on:
+  push:
+    branches:
+      - main
+      - build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create private key file
+        run: echo "${{ secrets.PRIVATE_KEY }}" > private.pem
+
+      - name: Pack Chrome Extension
+        run: npx crx pack . --key=private.pem
+        # If your extension files are in a subfolder, change '.' to that folder path.
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload CRX to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "*.crx"
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
