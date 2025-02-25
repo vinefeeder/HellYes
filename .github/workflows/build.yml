@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - build
 
 jobs:
   build:
@@ -19,15 +18,12 @@ jobs:
         with:
           node-version: '16'
 
-      - name: Install dependencies
-        run: npm install
-
       - name: Create private key file
         run: echo "${{ secrets.PRIVATE_KEY }}" > private.pem
 
       - name: Pack Chrome Extension
-        run: npx crx pack . --key=private.pem
-        # If your extension files are in a subfolder, change '.' to that folder path.
+        run: npx crx pack browser-extension --key=private.pem
+        # Adjust the folder name if your extension is located elsewhere.
 
       - name: Create GitHub Release
         id: create_release
