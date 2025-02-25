@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: v${{ github.run_number }}
 
     steps:
       - name: Checkout repository
@@ -23,21 +25,20 @@ jobs:
         run: echo "${{ secrets.PRIVATE_KEY }}" > private.pem
 
       - name: Pack Chrome Extension
-        run: npx crx pack browser-extension -p private.pem
-        # Adjust the folder name if your extension is located elsewhere.
+        run: npx crx pack browser-extension --pem private.pem
 
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.run_number }}
+          tag_name: ${{ env.RELEASE_TAG }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload CRX to Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.create_release.outputs.tag_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
           files: "*.crx"
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
