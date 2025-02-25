@@ -36,7 +36,7 @@
     "browser_specific_settings": {
         "gecko": {
             "id": "hellyes@hellyes.org",
-            "strict_min_version": "1.0"
+            "strict_min_version": "58.0"
         }
     }
 }
