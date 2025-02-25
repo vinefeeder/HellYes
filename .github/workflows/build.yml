@@ -50,6 +50,8 @@ jobs:
   firefox_build:
     runs-on: ubuntu-latest
     needs: chrome_build
+    env:
+      RELEASE_TAG: v${{ github.run_number }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -59,7 +61,6 @@ jobs:
         with:
           node-version: '16'
 
-      # Optionally, if you have any Firefox-specific keys or configuration, add them here.
       - name: Build Firefox Extension
         run: npx web-ext build -s browser-extension --artifacts-dir firefox-artifacts
 
