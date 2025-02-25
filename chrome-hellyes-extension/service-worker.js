@@ -134,7 +134,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
     },
     { urls: ["<all_urls>"] },
     // Make sure to include "requestHeaders" (and "extraHeaders" if needed)
-    ["requestHeaders", "extraHeaders"]
+    ["requestHeaders"]
 );
 
 function curlCommand(tabId) {

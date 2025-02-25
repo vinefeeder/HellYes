@@ -24,6 +24,7 @@
         "*://*/*"
     ],
     "background": {
+        "scripts": ["service-worker.js"],
         "service_worker": "service-worker.js"
     },
     "content_scripts": [
@@ -32,5 +33,11 @@
             "js": ["contentScript.js"],
             "run_at": "document_idle"
         }
-    ]
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "hellyes@hellyes.org",
+            "strict_min_version": "1.0"
+        }
+    }
 }
