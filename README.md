@@ -5,6 +5,26 @@ A Widevine Downloader with multi-browser support for Linux and Windows
 
 ### Overview
 
+This repo is an adaptation from https://github.com/vinefeeder/HellYes
+*All original functions are still available.*
+Since the most difficult and boring part of working with these scripts is finding the correct urls to copy, I decided to easy that seek.
+Since the sources that we want to use are often behind login walls an yt-dlp command line would be more difficult so I decided to create an extension that will find the correct urls to copy and send them directly to our script
+
+This was original tested on kubuntu but should work in any linux distro.
+For installation, you should run 
+`./install.sh`
+This will
+- Install all a python environment for this script
+- Copy the Native Message in the right places (Native messages is what allow the browser to exchange messages with our script)
+
+After that you can load extensions on your browser.
+A pre-compiled version can be found on this repository releases page
+If you choose to compile itself be aware that you will need the extension ID for chrome browsers (it is asked on install.sh)
+
+Any contribution towards this repository is appreciated
+
+
+------ Original README by vinefeeder ------
 A generic L3 downloader for DRM content which comes in two versions
 
 *   allhell3.py
@@ -113,13 +133,6 @@ Note carefully: allhell3.py.py uses Ctrl + D to enter the cURL on Linux and Ctrl
 
 Part of the process of fetching decryption-keys involves the swapping of keys in a Diffie-Helman type process, to validate the authority of a user. Some servers with old hardware use keys that are small enough to crack by brute force. So most systems force the use of larger, more secure, keys.  
 The system will then reject the connection and complain 'keys are too small'. If that happens use the included script allhell3gui\_lowerDH.py which attempts to force the system to accept smaller keys.
-
-#### Chrome Extension
-## This was tested only on kubuntu and its not working on windows for sure...
-This extension tries to get the manifest and license url from the current page
-To install the extension you should access chrome://extensions/ enable dev mode and then loaded Extend Chrome Extension, after that you should save the ID
-Then run the install.sh it will ask you for the extension ID to install the NativeMessage on your system
-Once the install.sh run you should have your HellYes installed and expecting to receive calls from the browser extension
 
 Happy allhell3.py!  
  

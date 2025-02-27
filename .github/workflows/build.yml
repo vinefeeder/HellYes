@@ -1,0 +1,90 @@
+name: Build and Release Browser Extensions
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  chrome_build:
+    runs-on: ubuntu-latest
+    env:
+      EXT_VERSION: 0.0.${{ github.run_number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Update the version in your manifest file
+      - name: Update manifest version for Chrome
+        run: |
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.EXT_VERSION }}"/' browser-extension/manifest.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Create private key file
+        run: echo "${{ secrets.PRIVATE_KEY }}" > private.pem
+
+      - name: Pack Chrome Extension
+        run: npx crx3 pack browser-extension -p private.pem
+
+      - name: Rename and Zip Chrome CRX
+        run: |
+          mv web-extension.crx hellyes-chrome.crx
+          zip hellyes-chrome.zip hellyes-chrome.crx
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.EXT_VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Chrome Asset to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.EXT_VERSION }}
+          files: "hellyes-chrome.zip"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  firefox_build:
+    runs-on: ubuntu-latest
+    needs: chrome_build
+    env:
+      EXT_VERSION: 0.0.${{ github.run_number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Update the version in the manifest file for Firefox as well
+      - name: Update manifest version for Firefox
+        run: |
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.EXT_VERSION }}"/' browser-extension/manifest.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Sign Firefox Extension
+        run: |
+          npx web-ext sign -s browser-extension \
+          --artifacts-dir firefox-artifacts \
+          --channel unlisted \
+          --api-key ${{ secrets.FIREFOX_ISSUER }} \
+          --api-secret ${{ secrets.FIREFOX_SECRET }}
+
+      - name: Rename Firefox XPI
+        run: mv firefox-artifacts/*.xpi hellyes-firefox.xpi
+
+      - name: Upload Firefox Asset to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.EXT_VERSION }}
+          files: "hellyes-firefox.xpi"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
