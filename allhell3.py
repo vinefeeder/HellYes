@@ -48,6 +48,10 @@ import sys
 import json
 import re
 
+# Append your local bin directory to the PATH
+bin_path = os.path.join(os.getcwd(), "bin")
+os.environ["PATH"] += os.pathsep + bin_path
+
 ####################
 #BE SURE TO EDIT THIS to use a different WVD !!!!
 ####################
