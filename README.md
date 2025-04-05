@@ -9,7 +9,7 @@ A generic L3 downloader for DRM content which comes in two (Edit: no THREE) vers
 
 *   allhell3.py
 *   allhell3gui.py
-*   allhell3.py modified to use a Chrome browser extension to automatically find needed data - a fork written by MalMen at https://github.com/MalMen/HellYes/tree/main
+*   allhell3.py modified to use a Chrome browser extension to automatically find needed data - a fork written by MalMen at https://github.com/MalMen/HellYes/tree/main  Sadly this no longer appears to collect the License cURL on few sites I tested. No longer recommended.
 
 Allhell3.py is coded for the all browsers (tested on Chrome, Firefox and Edge) and is supplied very nearly ready to download all media protected by widevine.
 You just need to provide a working Content Decryption Module and call it device.wvd and place it in the top level folder of HellYes
