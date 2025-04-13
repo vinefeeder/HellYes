@@ -358,7 +358,7 @@ class AllHell3App(QWidget):
                 keys.append(f"--key {key.kid.hex}:{key.key.hex()}")
 
         cdm.close(session_id)
-        return "\n".join(keys)
+        return keys
 
     def fetch_keys(self):
         mpd_url = self.mpd_url_entry.text()
@@ -373,12 +373,13 @@ class AllHell3App(QWidget):
             license_url, method, headers, data = self.parse_curl(curl_command)
             keys = self.get_key(pssh, license_url, headers, data)
             self.keys_output.clear()
-            self.keys_output.append(keys)
-
-            n_m3u8dl_re_command = f"N_m3u8DL-RE '{mpd_url}' {keys} --save-name {self.video_name_entry.text()} -mt -M:format=mkv:muxer=mkvmerge"
+            self.keys_output.append("\n".join( keys))
+            key_str = " ".join(keys)
+            
+            n_m3u8dl_re_command = f"N_m3u8DL-RE '{mpd_url}' {key_str} --save-name {self.video_name_entry.text()} -mt -M:format=mkv:muxer=mkvmerge"
             self.n_m3u8dl_re_output.setText(n_m3u8dl_re_command)
 
-            subprocess_command = ['N_m3u8DL-RE', mpd_url] + keys.split() + ['--save-name', self.video_name_entry.text(), '-mt', '-M', 'format=mkv:muxer=mkvmerge']
+            subprocess_command = ['N_m3u8DL-RE', mpd_url], key_str, ['--save-name', self.video_name_entry.text(), '-mt', '-M', 'format=mkv:muxer=mkvmerge']
             self.subprocess_output.setText(str(subprocess_command))
 
         except Exception as e:
