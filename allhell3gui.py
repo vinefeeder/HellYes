@@ -379,7 +379,17 @@ class AllHell3App(QWidget):
             n_m3u8dl_re_command = f"N_m3u8DL-RE '{mpd_url}' {key_str} --save-name {self.video_name_entry.text()} -mt -M:format=mkv:muxer=mkvmerge"
             self.n_m3u8dl_re_output.setText(n_m3u8dl_re_command)
 
-            subprocess_command = ['N_m3u8DL-RE', mpd_url], key_str, ['--save-name', self.video_name_entry.text(), '-mt', '-M', 'format=mkv:muxer=mkvmerge']
+            #subprocess_command = ['N_m3u8DL-RE', mpd_url], key_str, ['--save-name', self.video_name_entry.text(), '-mt', '-M', 'format=mkv:muxer=mkvmerge']
+            subprocess_command = [
+                'N_m3u8DL-RE',
+                mpd_url,
+                *key_str.split(),  # spread the keys
+                '--save-name',
+                self.video_name_entry.text(),
+                '-mt',
+                '-M',
+                'format=mkv:muxer=mkvmerge'
+            ]
             self.subprocess_output.setText(str(subprocess_command))
 
         except Exception as e:
