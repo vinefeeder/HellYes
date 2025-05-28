@@ -15,6 +15,7 @@ For installation, you should run
 `./install.sh`
 This will
 - Install all a python environment for this script
+- Check and guide you to install dependencies
 - Copy the Native Message in the right places (Native messages is what allow the browser to exchange messages with our script)
 
 After that you can load extensions on your browser.
