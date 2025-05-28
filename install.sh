@@ -6,6 +6,7 @@ source install/browsers.sh
 source install/n_m3u8dl_re.sh
 source install/ffmpeg.sh
 source install/bento4.sh
+source install/mkvmerge.sh
 # --- Main Installation ---
 
 ensure_python_installed
@@ -17,6 +18,8 @@ install_device_wvd
 install_n_m3u8dl_re
 
 install_ffmpeg
+
+install_mkvmerge
 
 install_mp4decrypt
 
