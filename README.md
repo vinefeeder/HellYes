@@ -111,7 +111,9 @@ Note carefully: allhell3.py.py uses Ctrl + D to enter the cURL on Linux and Ctrl
 
 #### Allhell3gui In action
 
-![Starting GUI](images/gui2.png) ![Populating Data](images/gui3.png) ![N_m3u8DL-RE running in terminal](images/gui4.png)
+![Starting GUI](images/gui2.png) ![Populating Data](images/gui3.png) ![N_m3u8DL-RE running in terminal](images/gui4.png) ![New Gui with reset and dash-mpd-cli download](images/gui5.png)
+
+)
 
 #### Coping with 'key too small' errors.
 
