@@ -42,7 +42,7 @@ Install the following:
 
 You provide three bits of information taken from a web page and allhell3.py does the rest.
 
-You start a python script with 'python allhell3.py' written in a terminal or 'python3 allhell3gui.py'
+You start a python script with 'python allhell3.py' written in a terminal or 'python3 gui.py'
 
 But python scripts typically use modules that are imported to the script
 
@@ -96,7 +96,7 @@ For example, open this image in a new tab to see it full size.
 
 Which 'copy as cURL' to use? Windows - choose 'Copy as cURL (Posix)' if available or 'Copy as cURL (bash)'
 
-If using allhell3.py.py terminate your paste command and tell the script to process the cURL by using Ctrl+Z (Windows) or Ctrl+D (Linux).  
+If using allhell3.py terminate your paste command and tell the script to process the cURL by using Ctrl+Z (Windows) or Ctrl+D (Linux).  
 Be prepared for the screen to write several blank lines, shifting existing text upwards rapidly.
 
 *   Video name
@@ -109,7 +109,7 @@ Running the script. ![Example pasting mpd](images/enter_mpd.png) ![curl pastes t
 
 Note carefully: allhell3.py.py uses Ctrl + D to enter the cURL on Linux and Ctrl + Z on Windows. Nothing prints to the screen until Ctrl+D or Z is pressed.
 
-#### Allhell3gui In action
+#### Allhell gui In action
 
 ![Starting GUI](images/gui2.png) ![Populating Data](images/gui3.png) ![N_m3u8DL-RE running in terminal](images/gui4.png) ![New Gui with reset and dash-mpd-cli download](images/gui5.png)
 
