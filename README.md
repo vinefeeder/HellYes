@@ -5,29 +5,33 @@ A Widevine Downloader with multi-browser support for Linux and Windows
 
 ### Overview
 
-A generic L3 downloader for DRM content which comes in two versions
+A generic L3 downloader for DRM content which comes in three versions
 
 *   allhell3.py
 *   allhell3gui.py
+*   gui.py
+
 
 Allhell3.py is coded for the all browsers (tested on Chrome, Firefox and Edge) and is supplied very nearly ready to download all media protected by widevine.
 You just need to provide a working Content Decryption Module and call it device.wvd and place it in the top level folder of HellYes
 
-allhell3gui.py is a Graphical User Interface version of allhell3.py.
+gui.py is the latest Graphical User Interface version of allhell3.py. allhell3gui.py is the original gui version.
 
   
 In use, the style of entering data is a little different. allhell3.py uses a paste _without echo to the screen_, and uses Ctrl+D (Linux) or Ctrl+Z (Windows) to signal the end of the cURL input.  
-allhell3gui.py uses a paste _with echo to the screen_, and uses button clicks to process data.  
+gui.py uses a paste _with echo to the screen_, and uses button clicks to process data.  
 Use whichever you like best on your system....  
-In both versions a downloader (N\_m3u8DL-RE) may be used to download the media.
+In both versions a downloader (N\_m3u8DL-RE) or Dash-mpd-cli may be used to download the media. Note that the dash-mpd-cli downloader will download subtitles as a separate file and it will NOT be muxed with the video.
 
-But either will need you to download some helper software.
+
+You will need you to download some helper software.
 
 ### Pre Use Instructions
 
 Install the following:
 
 *   See the code at [https://github.com/nilaoda/N\_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE), download the latest release. Unzip and save to a folder named 'binaries'. It can be anywhere on your system. So long as 'binaries' is in your Path.
+* s See the code at [https://github.com/emarsden/dash-mpd-cli/releases] for details of dash-mpd-cli downloader.
 *   Do the same with [ffmpeg](https://www.videohelp.com/software/ffmpeg) and [MKVToolNix](https://www.videohelp.com/software/MKVToolNix) etc.
 *   See [https://www.videohelp.com/software/ffmpeg](https://www.videohelp.com/software/ffmpeg) for more information about ffmpeg.
 *   See [https://www.videohelp.com/software/MKVToolNix](https://www.videohelp.com/software/MKVToolNix) for more information about MKVToolNix.
@@ -55,7 +59,7 @@ On Linux You'll already know how to use xterm or whatever
 *   cURL of license server request
 *   Video name
 
-After you provide the data, it will download the video using N\_m3u8DL-RE, should you wish, finding keys in the process.
+After you provide the data, it will download the video using N\_m3u8DL-RE or dash-mpd-cli, should you wish, finding keys in the process.
 
 #### You Find
 
@@ -80,7 +84,7 @@ The filter is a regex or regular expression - it's a way of saying "find all the
 the regex is "regexp:widevine|acquire|license|mpd" and it means "find all the lines that contain widevine or acquire or license or mpd". However, Chrome does not allow regexp: so use a single word like license or mpd etc.
 
 With expereince you will learn that sites use different words to identify their license url.  
-And if the filter does not find it, search with 'method:POST' as a filter. POST messages are sent securely, most http traffic isn't. But licenses are.
+And it the filter does not find it search with method:POST filter. POST messages are sent securely, most http traffic isn't. But licenses are.
 
 *   cURL of license server request
 
