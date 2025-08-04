@@ -5,4 +5,3 @@ PyQt6_sip
 pywidevine
 termcolor
 yt_dlp
-shlex
