@@ -141,13 +141,9 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
                 const escapedValue = headers[name].replace(/"/g, '\\"');
                 headerString += ` -H "${name}: ${escapedValue}"`;
             }
-            storeTabData(tabId, 'headerString', headerString)
-            console.log("Matched Request Headers:", headers);
-            console.log("cURL headers part:", headerString);
-            // You might also want to combine this with your earlier cURL command
-        }
-    },
-    { urls: ["<all_urls>"] },
+            storeTabData(tabId, 'headers', headers); // Store the raw headers object
+
+            let headerString = "";
     // Make sure to include "requestHeaders" (and "extraHeaders" if needed)
     ["requestHeaders"]
 );
@@ -206,15 +202,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 return;
             }
 
-            // Create an object with the necessary parameters.
+            // Create an object with the necessary parameters for allhell3.py
             const dataToSend = {
-                manifestUrl: tabData[tabId].manifestUrl || "",   // GET request URL
-                licenseCurl: curlCommand(tabId),    // POST cURL command
-                licenseData: tabData[tabId].licenseBase64 || "", // base64 encoded binary
-                title: tabData[tabId].title || msg.title // The title from the popup
+                manifestUrl: tabData[tabId].manifestUrl || "",
+                licenseUrl: tabData[tabId].licenseUrl || "",
+                bodyBase64: tabData[tabId].licenseBase64 || "", // The script expects bodyBase64
+                headers: tabData[tabId].headers || {},          // The script expects a dict
+                title: tabData[tabId].title || msg.title || "video",
+                deleteMe: false
             };
 
-            console.log("Curl command:", curlCommand(tabId));
+            console.log("Sending data to native host:", dataToSend);
 
             // Send the collected data to the native host
             chrome.runtime.sendNativeMessage(
