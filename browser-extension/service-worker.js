@@ -82,6 +82,16 @@ function bytesToEscapedString(rawBytes) {
         .map(b => "\\x" + b.toString(16).padStart(2, "0"))
         .join("");
 }
+// Helper: convert raw bytes to Base64
+function bytesToBase64(rawBytes) {
+    const uint8 = new Uint8Array(rawBytes);
+    let binary = "";
+    for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+    }
+    return btoa(binary);
+}
+
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
         if (details.method === "POST" && /license/i.test(details.url)) {
@@ -95,12 +105,15 @@ chrome.webRequest.onBeforeRequest.addListener(
                 if (details.requestBody.raw && details.requestBody.raw.length > 0) {
                     // For binary data, do not assume UTF-8; convert to escaped hex
                     dataStr = bytesToEscapedString(details.requestBody.raw[0].bytes);
+                    base64Str = bytesToBase64(details.requestBody.raw[0].bytes);
                 } else if (details.requestBody.formData) {
                     // For form data, you could JSON-stringify it or build key=value pairs
                     dataStr = JSON.stringify(details.requestBody.formData);
+                    base64Str = JSON.stringify(details.requestBody.formData);
                 }
             }
             storeTabData(tabId, 'licenseData', dataStr)
+            storeTabData(tabId, 'licenseBase64', base64Str)
             storeTabData(tabId, 'licenseUrl', details.url)
         }
     },
@@ -144,6 +157,7 @@ function curlCommand(tabId) {
     const licenseUrl = tabInfo.licenseUrl || "";
     const headerString = tabInfo.headerString || "";
     const licenseData = tabInfo.licenseData || "";
+    const licenseBase64 = tabInfo.licenseBase64 || "";
 
     // Return empty string if any of them are missing
     if (!licenseUrl || !headerString || !licenseData) {
@@ -192,6 +206,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const dataToSend = {
                 manifestUrl: tabData[tabId].manifestUrl || "",   // GET request URL
                 licenseCurl: curlCommand(tabId),    // POST cURL command
+                licenseData: tabData[tabId].licenseBase64 || "", // base64 encoded binary
                 title: tabData[tabId].title || msg.title // The title from the popup
             };
 

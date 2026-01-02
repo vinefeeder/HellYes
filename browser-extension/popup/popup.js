@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Function to check if the button should be enabled
     function updateButtonState() {
-        sendButton.disabled = !(manifestCheckbox.checked && curlCheckbox.checked && titleInput.value.trim() !== "");
+        sendButton.disabled = false;
     }
 
     // Function to update checkbox appearance (green for checked, red for unchecked)
@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateCheckboxStyle(manifestCheckbox, !!response.manifestUrl);
 
             // Check if cURL command is present
-            updateCheckboxStyle(curlCheckbox, !!response.curlCommand);
+            updateCheckboxStyle(curlCheckbox, !!response.licenseUrl);
 
             // Update button state initially
             updateButtonState();
@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
         chrome.runtime.sendMessage({ action: "sendData", title: titleValue }, (response) => {
             const resultDiv = document.getElementById("result");
             if (response && response.status === "success") {
-                resultDiv.textContent = "Data sent successfully!";
+                resultDiv.textContent = "Data sent successfully! "+response.message;
             } else {
                 resultDiv.textContent = "Error: " + (response.error || "Unknown error");
             }

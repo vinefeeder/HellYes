@@ -18,6 +18,10 @@ import codecs
 from pathlib import Path
 import os
 
+# Append your local bin directory to the PATH
+bin_path = os.path.join(os.getcwd(), "bin")
+os.environ["PATH"] += os.pathsep + bin_path
+
 WVD_PATH = "./device.wvd"
 WIDEVINE_SYSTEM_ID = 'EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED'
 
