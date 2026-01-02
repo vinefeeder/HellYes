@@ -137,7 +137,9 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
             let headerString = "";
             // If you want to append headers to the cURL command, format them accordingly
             for (const name in headers) {
-                headerString += ` -H '${name}: ${headers[name]}'`;
+                // Use double quotes for Windows compatibility
+                const escapedValue = headers[name].replace(/"/g, '\\"');
+                headerString += ` -H "${name}: ${escapedValue}"`;
             }
             storeTabData(tabId, 'headerString', headerString)
             console.log("Matched Request Headers:", headers);
@@ -164,7 +166,9 @@ function curlCommand(tabId) {
         return "";
     }
 
-    return `curl '${licenseUrl}' ${headerString} --data-raw $'${licenseData}'`;
+    // Windows-compatible: use double quotes and escape backslashes and quotes
+    const escapedData = licenseData.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `curl "${licenseUrl}" ${headerString} --data-raw "${escapedData}"`;
 }
 
 
