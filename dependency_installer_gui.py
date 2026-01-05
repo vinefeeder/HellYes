@@ -631,6 +631,11 @@ class InstallerGUI:
 
     def install_ffmpeg(self, step):
         """Install FFmpeg"""
+        # Check if already installed
+        if DependencyInstaller.check_ffmpeg():
+            step.log("FFmpeg is already installed!")
+            return True
+
         # Try package manager first
         pkg_managers = {
             'apt-get': 'sudo apt-get update && sudo apt-get install -y ffmpeg',
@@ -644,12 +649,27 @@ class InstallerGUI:
             if DependencyInstaller.check_command(pm):
                 step.log(f"Detected package manager: {pm}")
                 step.log(f"Running: {cmd}")
+                step.log("This may require your sudo password...")
                 success, output = DependencyInstaller.run_command(cmd, shell=True)
                 step.log(output)
-                return success
+
+                if success:
+                    step.log("Installation command completed successfully!")
+                    # Verify installation
+                    if DependencyInstaller.check_ffmpeg():
+                        step.log("✅ FFmpeg is now available!")
+                        return True
+                    else:
+                        step.log("⚠️  Installation command ran but FFmpeg is not detected.")
+                        step.log("You may need to install it manually.")
+                        return False
+                else:
+                    step.log("⚠️  Installation command failed.")
+                    return False
 
         step.log("No supported package manager found.")
         step.log("Please install FFmpeg manually from https://ffmpeg.org/download.html")
+        step.log("Or place the ffmpeg binary in ./bin/ffmpeg")
         return False
 
     def install_mp4decrypt(self, step):
@@ -1036,48 +1056,174 @@ class InstallerGUI:
         window.after(3500, periodic_check)
 
     def show_ffmpeg_instructions(self):
-        """Show instructions for FFmpeg"""
+        """Show interactive FFmpeg installation wizard with auto-detection"""
         window = Toplevel(self.root)
-        window.title("Manual Installation: FFmpeg")
-        window.geometry("700x450")
+        window.title("FFmpeg Installation Wizard")
+        window.geometry("800x550")
+        window.minsize(750, 500)
+        window.maxsize(1200, 800)
+        window.transient(self.root)
+        window.grab_set()
+        window.lift()
+        window.focus_force()
 
-        frame = ttk.Frame(window, padding="20")
-        frame.pack(fill=BOTH, expand=True)
+        main_frame = ttk.Frame(window, padding="10")
+        main_frame.pack(fill=BOTH, expand=True)
 
-        title = ttk.Label(frame, text="📖 FFmpeg", font=("Arial", 14, "bold"))
+        # Title
+        title = ttk.Label(main_frame, text="📖 FFmpeg", font=("Arial", 14, "bold"))
         title.pack(pady=(0, 10))
 
-        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
-        text.pack(fill=BOTH, expand=True)
+        # Instructions
+        inst_frame = ttk.LabelFrame(main_frame, text="📋 Instructions", padding="10")
+        inst_frame.pack(fill=X, pady=(0, 10))
 
-        instructions = """FFmpeg is a powerful multimedia framework.
+        bin_dir = Path("./bin").absolute()
+        inst_text = ttk.Label(inst_frame, text=(
+            f"Install FFmpeg using package manager OR place it in:\n"
+            f"  📁 {bin_dir}/ffmpeg\n\n"
+            f"Recommended: Install via package manager\n"
+            f"  • Ubuntu/Debian: sudo apt-get install ffmpeg\n"
+            f"  • Fedora: sudo dnf install ffmpeg\n"
+            f"  • Arch: sudo pacman -S ffmpeg\n"
+            f"  • macOS: brew install ffmpeg\n\n"
+            f"The wizard will automatically detect when FFmpeg is available."
+        ), font=("Arial", 9), justify=LEFT)
+        inst_text.pack(anchor=W)
 
-Installation Options:
+        # Status display
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(fill=X, pady=(0, 10))
 
-Option 1: Package Manager (Recommended)
-  Ubuntu/Debian: sudo apt-get install ffmpeg
-  Fedora: sudo dnf install ffmpeg
-  Arch: sudo pacman -S ffmpeg
-  macOS: brew install ffmpeg
+        status_label = ttk.Label(status_frame, text="🔍 Checking for FFmpeg...", font=("Arial", 11, "bold"))
+        status_label.pack()
 
-Option 2: Manual Installation
-  1. Visit: https://ffmpeg.org/download.html
-  2. Download the appropriate build for your platform
-  3. Extract the ffmpeg executable
-  4. Place it in: ./bin/ffmpeg
-     OR add it to your system PATH
+        # File status indicator
+        file_status_frame = ttk.Frame(main_frame)
+        file_status_frame.pack(fill=X, pady=(0, 10))
 
-After installation, close this window and click "Re-check" to verify."""
+        file_label = ttk.Label(file_status_frame, text="❌ FFmpeg: Not found", font=("Arial", 9))
+        file_label.pack(anchor=W, padx=20)
 
-        text.insert("1.0", instructions)
-        text.config(state=DISABLED)
+        # Buttons frame (pack at bottom first)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(side=BOTTOM, fill=X, pady=(10, 0))
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=(10, 0))
+        # Log area
+        log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
+        log_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
 
-        ttk.Button(btn_frame, text="Open FFmpeg Website",
-                   command=lambda: webbrowser.open("https://ffmpeg.org/download.html")).pack(side=LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
+        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=10)
+        log_text.pack(fill=BOTH, expand=True)
+
+        def log_message(msg):
+            log_text.insert(END, msg + "\n")
+            log_text.see(END)
+            log_text.update()
+
+        def check_file():
+            """Check if FFmpeg exists"""
+            log_message("Checking for FFmpeg...")
+
+            # Check in bin/ directory
+            bin_path = Path("./bin/ffmpeg")
+            system_path = DependencyInstaller.check_command('ffmpeg')
+
+            if bin_path.exists():
+                file_label.config(text=f"✅ FFmpeg: Found in ./bin/", foreground="green")
+                status_label.config(text="✅ FFmpeg found!", foreground="green")
+                log_message(f"✅ Found: {bin_path.absolute()}")
+
+                # Check if executable
+                if not bin_path.stat().st_mode & 0o111:
+                    log_message("⚠️  File is not executable. Making it executable...")
+                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                    log_message("✅ File is now executable")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "FFmpeg":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ FFmpeg has been found and configured!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            elif system_path:
+                file_label.config(text="✅ FFmpeg: Found in system PATH", foreground="green")
+                status_label.config(text="✅ FFmpeg found in system!", foreground="green")
+                log_message("✅ Found in system PATH")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "FFmpeg":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ FFmpeg is installed in your system!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            else:
+                file_label.config(text="❌ FFmpeg: Not found", foreground="red")
+                status_label.config(text="⏳ Waiting for FFmpeg to be installed", foreground="orange")
+                log_message(f"❌ Not found in: {bin_path.absolute()}")
+                log_message("❌ Not found in system PATH")
+                log_message("⏳ Install using package manager or place in ./bin/")
+                return False
+
+        # Add buttons
+        ttk.Button(button_frame, text="🌐 Open FFmpeg Download Page",
+                   command=lambda: [
+                       webbrowser.open("https://ffmpeg.org/download.html"),
+                       log_message("Opened FFmpeg downloads in browser")
+                   ]).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="🔄 Check for FFmpeg Now",
+                   command=check_file).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="❌ Close",
+                   command=window.destroy).pack(side=RIGHT)
+
+        # Periodic auto-check
+        auto_check_active = [True]
+
+        def periodic_check():
+            """Periodically check for file every 3 seconds"""
+            if auto_check_active[0] and window.winfo_exists():
+                try:
+                    result = check_file()
+                    if not result:
+                        window.after(3000, periodic_check)
+                except:
+                    pass
+
+        def on_close():
+            auto_check_active[0] = False
+            window.destroy()
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+
+        # Initial check
+        log_message("Wizard started.")
+        log_message(f"Target directory: {bin_dir}")
+        log_message("Auto-checking every 3 seconds...")
+        log_message("-" * 60)
+        window.after(500, check_file)
+        window.after(3500, periodic_check)
 
     def show_mp4decrypt_instructions(self):
         """Show interactive mp4decrypt installation wizard with auto-detection"""
@@ -1250,48 +1396,174 @@ After installation, close this window and click "Re-check" to verify."""
         window.after(3500, periodic_check)
 
     def show_mkvmerge_instructions(self):
-        """Show instructions for mkvmerge"""
+        """Show interactive mkvmerge installation wizard with auto-detection"""
         window = Toplevel(self.root)
-        window.title("Manual Installation: mkvmerge")
-        window.geometry("700x450")
+        window.title("mkvmerge Installation Wizard")
+        window.geometry("800x550")
+        window.minsize(750, 500)
+        window.maxsize(1200, 800)
+        window.transient(self.root)
+        window.grab_set()
+        window.lift()
+        window.focus_force()
 
-        frame = ttk.Frame(window, padding="20")
-        frame.pack(fill=BOTH, expand=True)
+        main_frame = ttk.Frame(window, padding="10")
+        main_frame.pack(fill=BOTH, expand=True)
 
-        title = ttk.Label(frame, text="📖 mkvmerge (MKVToolNix)", font=("Arial", 14, "bold"))
+        # Title
+        title = ttk.Label(main_frame, text="📖 mkvmerge (MKVToolNix)", font=("Arial", 14, "bold"))
         title.pack(pady=(0, 10))
 
-        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
-        text.pack(fill=BOTH, expand=True)
+        # Instructions
+        inst_frame = ttk.LabelFrame(main_frame, text="📋 Instructions", padding="10")
+        inst_frame.pack(fill=X, pady=(0, 10))
 
-        instructions = """mkvmerge is part of MKVToolNix for working with Matroska files.
+        bin_dir = Path("./bin").absolute()
+        inst_text = ttk.Label(inst_frame, text=(
+            f"Install mkvmerge using package manager OR place it in:\n"
+            f"  📁 {bin_dir}/mkvmerge\n\n"
+            f"Recommended: Install via package manager\n"
+            f"  • Ubuntu/Debian: sudo apt-get install mkvtoolnix\n"
+            f"  • Fedora: sudo dnf install mkvtoolnix\n"
+            f"  • Arch: sudo pacman -S mkvtoolnix-cli\n"
+            f"  • macOS: brew install mkvtoolnix\n\n"
+            f"The wizard will automatically detect when mkvmerge is available."
+        ), font=("Arial", 9), justify=LEFT)
+        inst_text.pack(anchor=W)
 
-Installation Options:
+        # Status display
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(fill=X, pady=(0, 10))
 
-Option 1: Package Manager (Recommended)
-  Ubuntu/Debian: sudo apt-get install mkvtoolnix
-  Fedora: sudo dnf install mkvtoolnix
-  Arch: sudo pacman -S mkvtoolnix-cli
-  macOS: brew install mkvtoolnix
+        status_label = ttk.Label(status_frame, text="🔍 Checking for mkvmerge...", font=("Arial", 11, "bold"))
+        status_label.pack()
 
-Option 2: Manual Installation
-  1. Visit: https://mkvtoolnix.download/downloads.html
-  2. Download MKVToolNix for your platform
-  3. Install or extract mkvmerge executable
-  4. Place it in: ./bin/mkvmerge
-     OR add it to your system PATH
+        # File status indicator
+        file_status_frame = ttk.Frame(main_frame)
+        file_status_frame.pack(fill=X, pady=(0, 10))
 
-After installation, close this window and click "Re-check" to verify."""
+        file_label = ttk.Label(file_status_frame, text="❌ mkvmerge: Not found", font=("Arial", 9))
+        file_label.pack(anchor=W, padx=20)
 
-        text.insert("1.0", instructions)
-        text.config(state=DISABLED)
+        # Buttons frame (pack at bottom first)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(side=BOTTOM, fill=X, pady=(10, 0))
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=(10, 0))
+        # Log area
+        log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
+        log_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
 
-        ttk.Button(btn_frame, text="Open MKVToolNix Website",
-                   command=lambda: webbrowser.open("https://mkvtoolnix.download/downloads.html")).pack(side=LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
+        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=10)
+        log_text.pack(fill=BOTH, expand=True)
+
+        def log_message(msg):
+            log_text.insert(END, msg + "\n")
+            log_text.see(END)
+            log_text.update()
+
+        def check_file():
+            """Check if mkvmerge exists"""
+            log_message("Checking for mkvmerge...")
+
+            # Check in bin/ directory
+            bin_path = Path("./bin/mkvmerge")
+            system_path = DependencyInstaller.check_command('mkvmerge')
+
+            if bin_path.exists():
+                file_label.config(text=f"✅ mkvmerge: Found in ./bin/", foreground="green")
+                status_label.config(text="✅ mkvmerge found!", foreground="green")
+                log_message(f"✅ Found: {bin_path.absolute()}")
+
+                # Check if executable
+                if not bin_path.stat().st_mode & 0o111:
+                    log_message("⚠️  File is not executable. Making it executable...")
+                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                    log_message("✅ File is now executable")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "mkvmerge (MKVToolNix)":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ mkvmerge has been found and configured!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            elif system_path:
+                file_label.config(text="✅ mkvmerge: Found in system PATH", foreground="green")
+                status_label.config(text="✅ mkvmerge found in system!", foreground="green")
+                log_message("✅ Found in system PATH")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "mkvmerge (MKVToolNix)":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ mkvmerge is installed in your system!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            else:
+                file_label.config(text="❌ mkvmerge: Not found", foreground="red")
+                status_label.config(text="⏳ Waiting for mkvmerge to be installed", foreground="orange")
+                log_message(f"❌ Not found in: {bin_path.absolute()}")
+                log_message("❌ Not found in system PATH")
+                log_message("⏳ Install using package manager or place in ./bin/")
+                return False
+
+        # Add buttons
+        ttk.Button(button_frame, text="🌐 Open MKVToolNix Download Page",
+                   command=lambda: [
+                       webbrowser.open("https://mkvtoolnix.download/downloads.html"),
+                       log_message("Opened MKVToolNix downloads in browser")
+                   ]).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="🔄 Check for mkvmerge Now",
+                   command=check_file).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="❌ Close",
+                   command=window.destroy).pack(side=RIGHT)
+
+        # Periodic auto-check
+        auto_check_active = [True]
+
+        def periodic_check():
+            """Periodically check for file every 3 seconds"""
+            if auto_check_active[0] and window.winfo_exists():
+                try:
+                    result = check_file()
+                    if not result:
+                        window.after(3000, periodic_check)
+                except:
+                    pass
+
+        def on_close():
+            auto_check_active[0] = False
+            window.destroy()
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+
+        # Initial check
+        log_message("Wizard started.")
+        log_message(f"Target directory: {bin_dir}")
+        log_message("Auto-checking every 3 seconds...")
+        log_message("-" * 60)
+        window.after(500, check_file)
+        window.after(3500, periodic_check)
 
 
 def main():
