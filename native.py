@@ -6,6 +6,7 @@ import subprocess
 import os
 import datetime
 import base64
+import re
 
 def read_message():
     # Read the message length (first 4 bytes).
@@ -30,18 +31,29 @@ def main():
         # Read the incoming message from Chrome.
         message = read_message()
         manifest_url = message.get("manifestUrl", "")
-        license_curl = message.get("licenseCurl", "")
+        license_url = message.get("licenseUrl", "")
+        header_string = message.get("headerString", "")
+        headers = message.get("headers", "")
         license_data = message.get("licenseData", "")
+        body_base_64 = message.get("bodyBase64", "")
         title = message.get("title", "")
         if not title:
             title = datetime.datetime.now().isoformat()  # Example: '2025-02-15T14:30:00.123456'
 
+        # Sanitize title for use as filename (remove/replace invalid characters)
+        title = re.sub(r'[<>:"/\\|?*]', '', title)  # Replace invalid chars with underscore
+        title = title.strip()  # Remove leading/trailing whitespace
+
         data = {
             "manifestUrl": manifest_url,
-            "licenseCurl": license_curl,
+            "licenseUrl": license_url,
+            "headerString": header_string,
+            "headers": headers,
             "licenseData": license_data,
+            "bodyBase64": body_base_64,
             "title": title,
             "deleteMe": True
+
         }
 
         # Save the data in one JSON file with a name based on the current timestamp.

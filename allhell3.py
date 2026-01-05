@@ -14,6 +14,14 @@ from pathlib import Path
 from termcolor import colored
 import pyfiglet as PF
 
+# Fix Windows console encoding for Unicode characters
+if sys.platform == 'win32':
+    import io
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from pywidevine.cdm    import Cdm
 from pywidevine.device import Device
 from pywidevine.pssh   import PSSH
@@ -229,16 +237,28 @@ if __name__ == "__main__":
     downloads_dir = Path("downloads")
     downloads_dir.mkdir(exist_ok=True)
 
+    # Add bin/ to PATH so executables can be found (like /usr/local/bin)
+    bin_dir = Path(__file__).parent / "bin"
+    env = os.environ.copy()
+    env['PATH'] = str(bin_dir.absolute()) + os.pathsep + env.get('PATH', '')
+
+    # Determine executable path based on platform
+    if sys.platform == 'win32':
+        n_m3u8dl_exe = str(bin_dir / "N_m3u8DL-RE.exe")
+    else:
+        n_m3u8dl_exe = str(bin_dir / "N_m3u8DL-RE")
+
     cmd = [
-        "bin/N_m3u8DL-RE", mpd, *sum((k.split() for k in keys), []),
+        n_m3u8dl_exe, mpd, *sum((k.split() for k in keys), []),
         "--save-name", title,
         "--save-dir", str(downloads_dir),
-        "-M", "format=mkv:muxer=mkvmerge"
+        "-M", "format=mkv:muxer=mkvmerge",
+        "--auto-select"
     ]
     print(colored(" ".join(cmd) + "\n", "green"))
 
     input("↩  Enter to run, Ctrl-C to abort … ")
-    subprocess.run(cmd)
+    subprocess.run(cmd, env=env)
 
     if delete_me:
         os.remove(sys.argv[1])

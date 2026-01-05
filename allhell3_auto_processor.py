@@ -10,9 +10,16 @@ import os
 import time
 import threading
 import json
-import pexpect
+import platform
 import re
+import subprocess
 from pathlib import Path
+
+# Import pexpect based on platform
+if platform.system() == 'Windows':
+    import shlex
+else:
+    import pexpect
 from tkinter import *
 from tkinter import ttk, scrolledtext, messagebox
 from datetime import datetime
@@ -143,136 +150,226 @@ class ProcessingTab:
         self.log("=" * 60)
 
         try:
-            cmd = f"{self.venv_python} allhell3.py '{self.file_path}'"
-
-            # Spawn the process with pexpect
-            child = pexpect.spawn(cmd, timeout=30, encoding='utf-8', cwd=os.getcwd())
-            child.setwinsize(24, 120)
-
-            # Buffer for accumulating output
-            output_buffer = ""
-            last_progress_lines = {}  # Track last progress line for each stream
-
-            # Log output in real-time
-            while True:
-                try:
-                    # Read character by character
-                    char = child.read_nonblocking(size=1, timeout=1)
-                    output_buffer += char
-
-                    # Check if we have a complete line
-                    if '\n' in output_buffer or '\r' in output_buffer:
-                        lines = output_buffer.split('\n')
-                        for line in lines[:-1]:
-                            # Remove ALL ANSI escape codes (colors + cursor movements)
-                            clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', line)
-                            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
-                            clean_line = clean_line.strip()
-
-                            if not clean_line:
-                                continue
-
-                            # Check if this is a progress bar line (contains ━ or percentage)
-                            is_progress = '━' in clean_line or '%' in clean_line
-
-                            if is_progress:
-                                # Extract stream identifier (Vid/Aud)
-                                stream_id = None
-                                if clean_line.startswith('Vid'):
-                                    stream_id = 'Vid'
-                                elif clean_line.startswith('Aud'):
-                                    stream_id = 'Aud'
-
-                                if stream_id:
-                                    # Only log if significantly different from last update
-                                    # (every 5% change or different message)
-                                    should_log = True
-                                    if stream_id in last_progress_lines:
-                                        last_line = last_progress_lines[stream_id]
-                                        # Extract percentage if exists
-                                        try:
-                                            current_pct = float(re.search(r'(\d+\.\d+)%', clean_line).group(1))
-                                            last_pct = float(re.search(r'(\d+\.\d+)%', last_line).group(1))
-                                            # Only update every 5%
-                                            if abs(current_pct - last_pct) < 5.0:
-                                                should_log = False
-                                        except:
-                                            pass
-
-                                    if should_log:
-                                        last_progress_lines[stream_id] = clean_line
-                                        self.log(clean_line)
-                            else:
-                                # Regular line - always log
-                                self.log(clean_line)
-
-                        output_buffer = lines[-1]
-
-                    # Check for the input prompt
-                    if "Enter to run" in output_buffer or "Ctrl‑C to abort" in output_buffer:
-                        clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output_buffer)
-                        clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
-                        clean_line = clean_line.strip()
-                        if clean_line:
-                            self.log(clean_line)
-                        self.log("[Auto-confirming - sending Enter...]")
-                        child.sendline('')
-                        output_buffer = ""
-
-                except pexpect.TIMEOUT:
-                    # Flush buffer on timeout
-                    if output_buffer.strip():
-                        clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output_buffer)
-                        clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
-                        clean_line = clean_line.strip()
-                        if clean_line and '[' not in clean_line:  # Skip escape sequences
-                            self.log(clean_line)
-                        output_buffer = ""
-                    continue
-                except pexpect.EOF:
-                    # Flush any remaining buffer
-                    if output_buffer.strip():
-                        clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output_buffer)
-                        clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
-                        clean_line = clean_line.strip()
-                        if clean_line and '[' not in clean_line:  # Skip escape sequences
-                            self.log(clean_line)
-                    break
-
-            # Wait for process to finish
-            child.wait()
-            exit_code = child.exitstatus
-
-            self.log("=" * 60)
-
-            if exit_code == 0:
-                self.log(f"✓ Success: {self.filename}")
-
-                # Delete the JSON file if deleteMe is True
-                try:
-                    if os.path.exists(self.file_path):
-                        with open(self.file_path, 'r') as f:
-                            cfg = json.load(f)
-                            if cfg.get('deleteMe', False):
-                                os.remove(self.file_path)
-                                self.log(f"Deleted: {self.filename}")
-                except Exception as e:
-                    self.log(f"Note: Could not check/delete file: {str(e)}")
-
-                self.mark_complete(True)
+            if platform.system() == 'Windows':
+                # Windows: Use subprocess directly with auto-confirmation
+                self._process_windows()
             else:
-                self.log(f"✗ Failed: {self.filename} (exit code: {exit_code})")
-                self.mark_complete(False)
+                # Unix: Use pexpect for interactive control
+                self._process_unix()
 
-        except pexpect.TIMEOUT:
-            self.log(f"✗ Timeout: {self.filename}")
-            try:
-                child.terminate(force=True)
-            except:
-                pass
-            self.mark_complete(False)
         except Exception as e:
             self.log(f"✗ Error processing {self.filename}: {str(e)}")
+            self.mark_complete(False)
+
+    def _process_windows(self):
+        """Windows-specific processing using subprocess"""
+        cmd = [self.venv_python, 'allhell3.py', self.file_path]
+
+        # Create environment with UTF-8 encoding
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        # Create process with pipes
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+            env=env,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        # Send Enter immediately to auto-confirm
+        try:
+            proc.stdin.write('\n')
+            proc.stdin.flush()
+        except:
+            pass
+
+        output_buffer = ""
+        last_progress_lines = {}
+
+        # Read output line by line
+        for line in iter(proc.stdout.readline, ''):
+            if not line:
+                break
+
+            # Remove ANSI escape codes
+            clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', line)
+            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+            clean_line = clean_line.strip()
+
+            if not clean_line:
+                continue
+
+            # Check if this is a progress bar line
+            is_progress = '━' in clean_line or '%' in clean_line
+
+            if is_progress:
+                stream_id = None
+                if clean_line.startswith('Vid'):
+                    stream_id = 'Vid'
+                elif clean_line.startswith('Aud'):
+                    stream_id = 'Aud'
+
+                if stream_id:
+                    should_log = True
+                    if stream_id in last_progress_lines:
+                        last_line = last_progress_lines[stream_id]
+                        try:
+                            current_pct = float(re.search(r'(\d+\.\d+)%', clean_line).group(1))
+                            last_pct = float(re.search(r'(\d+\.\d+)%', last_line).group(1))
+                            if abs(current_pct - last_pct) < 5.0:
+                                should_log = False
+                        except:
+                            pass
+
+                    if should_log:
+                        last_progress_lines[stream_id] = clean_line
+                        self.log(clean_line)
+            else:
+                self.log(clean_line)
+
+            # Auto-send Enter if prompt detected
+            if "Enter to run" in line or "Ctrl‑C to abort" in line:
+                self.log("[Auto-confirming - sending Enter...]")
+                try:
+                    proc.stdin.write('\n')
+                    proc.stdin.flush()
+                except:
+                    pass
+
+        # Wait for process to finish
+        exit_code = proc.wait()
+
+        self.log("=" * 60)
+
+        if exit_code == 0:
+            self.log(f"✓ Success: {self.filename}")
+
+            # Delete the JSON file if deleteMe is True
+            try:
+                if os.path.exists(self.file_path):
+                    with open(self.file_path, 'r') as f:
+                        cfg = json.load(f)
+                        if cfg.get('deleteMe', False):
+                            os.remove(self.file_path)
+                            self.log(f"Deleted: {self.filename}")
+            except Exception as e:
+                self.log(f"Note: Could not check/delete file: {str(e)}")
+
+            self.mark_complete(True)
+        else:
+            self.log(f"✗ Failed: {self.filename} (exit code: {exit_code})")
+            self.mark_complete(False)
+
+    def _process_unix(self):
+        """Unix-specific processing using pexpect"""
+        cmd = f"{self.venv_python} allhell3.py '{self.file_path}'"
+        child = pexpect.spawn(cmd, timeout=30, encoding='utf-8', cwd=os.getcwd())
+        child.setwinsize(24, 120)
+
+        output_buffer = ""
+        last_progress_lines = {}
+
+        # Log output in real-time
+        while True:
+            try:
+                char = child.read_nonblocking(size=1, timeout=1)
+                output_buffer += char
+
+                if '\n' in output_buffer or '\r' in output_buffer:
+                    lines = output_buffer.split('\n')
+                    for line in lines[:-1]:
+                        clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', line)
+                        clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+                        clean_line = clean_line.strip()
+
+                        if not clean_line:
+                            continue
+
+                        is_progress = '━' in clean_line or '%' in clean_line
+
+                        if is_progress:
+                            stream_id = None
+                            if clean_line.startswith('Vid'):
+                                stream_id = 'Vid'
+                            elif clean_line.startswith('Aud'):
+                                stream_id = 'Aud'
+
+                            if stream_id:
+                                should_log = True
+                                if stream_id in last_progress_lines:
+                                    last_line = last_progress_lines[stream_id]
+                                    try:
+                                        current_pct = float(re.search(r'(\d+\.\d+)%', clean_line).group(1))
+                                        last_pct = float(re.search(r'(\d+\.\d+)%', last_line).group(1))
+                                        if abs(current_pct - last_pct) < 5.0:
+                                            should_log = False
+                                    except:
+                                        pass
+
+                                if should_log:
+                                    last_progress_lines[stream_id] = clean_line
+                                    self.log(clean_line)
+                        else:
+                            self.log(clean_line)
+
+                    output_buffer = lines[-1]
+
+                if "Enter to run" in output_buffer or "Ctrl‑C to abort" in output_buffer:
+                    clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output_buffer)
+                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+                    clean_line = clean_line.strip()
+                    if clean_line:
+                        self.log(clean_line)
+                    self.log("[Auto-confirming - sending Enter...]")
+                    child.sendline('')
+                    output_buffer = ""
+
+            except pexpect.TIMEOUT:
+                if output_buffer.strip():
+                    clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output_buffer)
+                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+                    clean_line = clean_line.strip()
+                    if clean_line and '[' not in clean_line:
+                        self.log(clean_line)
+                    output_buffer = ""
+                continue
+            except pexpect.EOF:
+                if output_buffer.strip():
+                    clean_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output_buffer)
+                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+                    clean_line = clean_line.strip()
+                    if clean_line and '[' not in clean_line:
+                        self.log(clean_line)
+                break
+
+        child.wait()
+        exit_code = child.exitstatus
+
+        self.log("=" * 60)
+
+        if exit_code == 0:
+            self.log(f"✓ Success: {self.filename}")
+
+            try:
+                if os.path.exists(self.file_path):
+                    with open(self.file_path, 'r') as f:
+                        cfg = json.load(f)
+                        if cfg.get('deleteMe', False):
+                            os.remove(self.file_path)
+                            self.log(f"Deleted: {self.filename}")
+            except Exception as e:
+                self.log(f"Note: Could not check/delete file: {str(e)}")
+
+            self.mark_complete(True)
+        else:
+            self.log(f"✗ Failed: {self.filename} (exit code: {exit_code})")
             self.mark_complete(False)
 
 
@@ -289,7 +386,12 @@ class AutoProcessorGUI:
         self.active_tabs = []
         self.processing_queue = []  # Queue for files waiting to be processed
         self.max_parallel = 10  # Default max parallel processes
-        self.venv_python = os.path.expanduser("~/venvs/hellshared/bin/python3")
+
+        # Platform-specific Python path
+        if platform.system() == 'Windows':
+            self.venv_python = "python"  # Use system python or venv if activated
+        else:
+            self.venv_python = os.path.expanduser("~/venvs/hellshared/bin/python3")
 
         self.setup_ui()
         self.main_log("Application started")
