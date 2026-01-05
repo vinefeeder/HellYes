@@ -168,21 +168,15 @@ class DependencyStep:
 
         # Manual install button (for non-auto steps)
         if not self.auto_install:
-            print(f"[DEBUG] Creating manual buttons for {self.name}")
             btn_frame = ttk.Frame(self.frame)
             btn_frame.pack(fill=X, padx=30, pady=(0, 10))
-
-            def test_click():
-                print(f"[DEBUG] Button clicked for {self.name}!")
-                self.show_manual_instructions()
 
             self.manual_button = ttk.Button(
                 btn_frame,
                 text="📖 Manual Instructions",
-                command=test_click
+                command=self.show_manual_instructions
             )
             self.manual_button.pack(side=LEFT, padx=5)
-            print(f"[DEBUG] Manual button created for {self.name}")
 
             self.recheck_button = ttk.Button(
                 btn_frame,
@@ -247,16 +241,10 @@ class DependencyStep:
 
     def show_manual_instructions(self):
         """Show manual installation instructions"""
-        print(f"[DEBUG] show_manual_instructions called for {self.name}")
-        print(f"[DEBUG] manual_instructions_func = {self.manual_instructions_func}")
-
         if self.manual_instructions_func:
             try:
                 self.manual_instructions_func()
             except Exception as e:
-                print(f"[ERROR] Failed to show manual instructions: {e}")
-                import traceback
-                traceback.print_exc()
                 messagebox.showerror(
                     "Error",
                     f"Failed to show manual instructions:\n{str(e)}"
@@ -684,45 +672,237 @@ class InstallerGUI:
     # Manual instruction dialogs
 
     def show_device_wvd_instructions(self):
-        """Show instructions for device.wvd"""
+        """Show interactive device.wvd installation wizard"""
         window = Toplevel(self.root)
-        window.title("Manual Installation: device.wvd")
-        window.geometry("700x500")
+        window.title("Widevine Device Installation Wizard")
+        window.geometry("750x600")
+        window.transient(self.root)
+        window.grab_set()
+        window.lift()
+        window.focus_force()
 
-        frame = ttk.Frame(window, padding="20")
-        frame.pack(fill=BOTH, expand=True)
+        main_frame = ttk.Frame(window, padding="20")
+        main_frame.pack(fill=BOTH, expand=True)
 
-        title = ttk.Label(frame, text="📖 Widevine Device (device.wvd)", font=("Arial", 14, "bold"))
+        # Title
+        title = ttk.Label(main_frame, text="📖 Widevine Device (device.wvd)", font=("Arial", 14, "bold"))
         title.pack(pady=(0, 10))
 
-        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=20)
-        text.pack(fill=BOTH, expand=True)
+        # Instructions
+        inst_frame = ttk.LabelFrame(main_frame, text="Instructions", padding="10")
+        inst_frame.pack(fill=X, pady=(0, 10))
 
-        instructions = """You need to obtain a Widevine L3 CDM device file.
+        inst_text = ttk.Label(inst_frame, text=(
+            "You need client_id.bin and private_key.pem to create device.wvd.\n"
+            "Use one of the options below:"
+        ), font=("Arial", 9))
+        inst_text.pack()
 
-Option 1: Use existing client_id.bin and private_key.pem
-  1. Place both files in the HellShared directory
-  2. Open a terminal in the HellShared directory
-  3. Run: ./venv/bin/pywidevine create-device -k private_key.pem -c client_id.bin -t "ANDROID" -l 3
-  4. Rename the created .wvd file to device.wvd
+        # Status display
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(fill=X, pady=(0, 10))
 
-Option 2: Download from repository
-  1. Visit: https://forum.videohelp.com/threads/413719-Ready-to-use-CDMs-available-here
-  2. Download a CDM package containing client_id.bin and private_key.pem
-  3. Extract the files to the HellShared directory
-  4. Follow Option 1 steps
+        status_label = ttk.Label(status_frame, text="Status: Waiting for files...", font=("Arial", 10))
+        status_label.pack()
 
-After completing the steps, close this window and click "Re-check" to verify."""
+        # Log area
+        log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
+        log_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
 
-        text.insert("1.0", instructions)
-        text.config(state=DISABLED)
+        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=10)
+        log_text.pack(fill=BOTH, expand=True)
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=(10, 0))
+        def log_message(msg):
+            log_text.insert(END, msg + "\n")
+            log_text.see(END)
+            log_text.update()
 
-        ttk.Button(btn_frame, text="Open Forum Link",
-                   command=lambda: webbrowser.open("https://forum.videohelp.com/threads/413719-Ready-to-use-CDMs-available-here")).pack(side=LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
+        def check_files():
+            """Check if required files exist"""
+            client_id = Path("client_id.bin").exists()
+            private_key = Path("private_key.pem").exists()
+            return client_id, private_key
+
+        def update_status():
+            """Update status based on file presence"""
+            client_id, private_key = check_files()
+            if client_id and private_key:
+                status_label.config(text="✅ Both files found! Ready to create device.wvd", foreground="green")
+                create_btn.config(state=NORMAL)
+                return True
+            elif client_id:
+                status_label.config(text="⚠️ Found client_id.bin, missing private_key.pem", foreground="orange")
+                create_btn.config(state=DISABLED)
+            elif private_key:
+                status_label.config(text="⚠️ Found private_key.pem, missing client_id.bin", foreground="orange")
+                create_btn.config(state=DISABLED)
+            else:
+                status_label.config(text="❌ Missing both files", foreground="red")
+                create_btn.config(state=DISABLED)
+            return False
+
+        def create_device_wvd():
+            """Create device.wvd from the files"""
+            log_message("=" * 60)
+            log_message("Creating device.wvd...")
+
+            try:
+                # Run pywidevine command
+                cmd = ['./venv/bin/pywidevine', 'create-device', '-k', 'private_key.pem',
+                       '-c', 'client_id.bin', '-t', 'ANDROID', '-l', '3']
+
+                log_message(f"Running: {' '.join(cmd)}")
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                log_message(result.stdout)
+                if result.stderr:
+                    log_message(result.stderr)
+
+                if result.returncode == 0:
+                    # Find and rename the .wvd file
+                    wvd_files = list(Path(".").glob("*.wvd"))
+                    if wvd_files:
+                        wvd_file = wvd_files[0]
+                        wvd_file.rename("device.wvd")
+                        log_message(f"✅ Renamed {wvd_file} to device.wvd")
+                        log_message("✅ device.wvd created successfully!")
+                        status_label.config(text="✅ device.wvd created successfully!", foreground="green")
+
+                        messagebox.showinfo(
+                            "Success",
+                            "device.wvd has been created successfully!\n\nClose this window and click Re-check."
+                        )
+                    else:
+                        log_message("❌ No .wvd file was created")
+                        status_label.config(text="❌ Creation failed", foreground="red")
+                else:
+                    log_message(f"❌ Command failed with exit code {result.returncode}")
+                    status_label.config(text="❌ Creation failed", foreground="red")
+
+            except Exception as e:
+                log_message(f"❌ Error: {str(e)}")
+                status_label.config(text="❌ Creation failed", foreground="red")
+                messagebox.showerror("Error", f"Failed to create device.wvd:\n{str(e)}")
+
+            log_message("=" * 60)
+
+        def download_from_url():
+            """Download and extract ZIP from URL"""
+            url = url_entry.get().strip()
+            if not url:
+                messagebox.showwarning("No URL", "Please enter a ZIP file URL")
+                return
+
+            log_message("=" * 60)
+            log_message(f"Downloading from: {url}")
+
+            try:
+                import tempfile
+                import zipfile
+                import urllib.request
+
+                with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+
+                log_message("Downloading...")
+                urllib.request.urlretrieve(url, tmp_path)
+                log_message("✅ Downloaded successfully")
+
+                log_message("Extracting...")
+                with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+                    zip_ref.extractall(".")
+                log_message("✅ Extracted successfully")
+
+                Path(tmp_path).unlink()
+                log_message("=" * 60)
+
+                # Check if files are now present
+                if update_status():
+                    messagebox.showinfo(
+                        "Success",
+                        "Files downloaded and extracted!\n\nNow click 'Create device.wvd' button."
+                    )
+                else:
+                    messagebox.showwarning(
+                        "Files Not Found",
+                        "ZIP extracted but client_id.bin and/or private_key.pem not found in root of ZIP.\n\n"
+                        "Please check the extracted files."
+                    )
+
+            except Exception as e:
+                log_message(f"❌ Error: {str(e)}")
+                messagebox.showerror("Error", f"Failed to download/extract:\n{str(e)}")
+
+        def browse_files():
+            """Open file browser to select files"""
+            from tkinter import filedialog
+
+            files = filedialog.askopenfilenames(
+                title="Select client_id.bin and private_key.pem",
+                filetypes=[("BIN/PEM files", "*.bin *.pem"), ("All files", "*.*")]
+            )
+
+            if files:
+                log_message("=" * 60)
+                log_message("Copying selected files...")
+                for file_path in files:
+                    src = Path(file_path)
+                    dst = Path(".") / src.name
+                    import shutil
+                    shutil.copy2(src, dst)
+                    log_message(f"✅ Copied {src.name}")
+                log_message("=" * 60)
+                update_status()
+
+        # Option 1: Open forum link
+        opt1_frame = ttk.LabelFrame(main_frame, text="Option 1: Get Files from Forum", padding="10")
+        opt1_frame.pack(fill=X, pady=(0, 10))
+
+        ttk.Label(opt1_frame, text="Visit the forum to download CDM files:").pack(anchor=W)
+
+        forum_btn_frame = ttk.Frame(opt1_frame)
+        forum_btn_frame.pack(fill=X, pady=(5, 0))
+
+        ttk.Button(forum_btn_frame, text="🌐 Open Forum Link",
+                   command=lambda: [
+                       webbrowser.open("https://forum.videohelp.com/threads/413719-Ready-to-use-CDMs-available-here"),
+                       log_message("Opened forum link in browser")
+                   ]).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(forum_btn_frame, text="📁 Browse for Files",
+                   command=browse_files).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(forum_btn_frame, text="🔄 Check Files",
+                   command=lambda: [update_status(), log_message("Checked for files")]).pack(side=LEFT)
+
+        # Option 2: Download from URL
+        opt2_frame = ttk.LabelFrame(main_frame, text="Option 2: Download from URL", padding="10")
+        opt2_frame.pack(fill=X, pady=(0, 10))
+
+        ttk.Label(opt2_frame, text="Enter direct ZIP file URL:").pack(anchor=W)
+
+        url_frame = ttk.Frame(opt2_frame)
+        url_frame.pack(fill=X, pady=(5, 0))
+
+        url_entry = ttk.Entry(url_frame, width=50)
+        url_entry.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
+
+        ttk.Button(url_frame, text="📥 Download & Extract",
+                   command=download_from_url).pack(side=LEFT)
+
+        # Create button
+        create_frame = ttk.Frame(main_frame)
+        create_frame.pack(fill=X, pady=(10, 0))
+
+        create_btn = ttk.Button(create_frame, text="🎯 Create device.wvd",
+                                command=create_device_wvd, state=DISABLED)
+        create_btn.pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(create_frame, text="Close", command=window.destroy).pack(side=RIGHT)
+
+        # Initial status check
+        update_status()
+        log_message("Wizard started. Choose an option above to get the required files.")
 
     def show_n_m3u8dl_re_instructions(self):
         """Show instructions for N_m3u8DL-RE"""
