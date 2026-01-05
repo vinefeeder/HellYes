@@ -842,10 +842,10 @@ class InstallerGUI:
             """Periodically check for files every 3 seconds"""
             if auto_check_active[0] and window.winfo_exists():
                 try:
-                    # Only check if device.wvd doesn't exist yet
+                    # Only check if device.wvd doesn't exist yet (successful creation closes window)
                     if not Path("device.wvd").exists():
                         check_and_create()
-                    window.after(3000, periodic_check)  # Check every 3 seconds
+                        window.after(3000, periodic_check)  # Check every 3 seconds
                 except:
                     pass
 
@@ -1013,9 +1013,11 @@ class InstallerGUI:
             """Periodically check for file every 3 seconds"""
             if auto_check_active[0] and window.winfo_exists():
                 try:
-                    if not DependencyInstaller.check_n_m3u8dl_re():
-                        check_file()
-                    window.after(3000, periodic_check)
+                    # Always call check_file, it will close window if found
+                    result = check_file()
+                    # Only continue periodic checking if file not found
+                    if not result:
+                        window.after(3000, periodic_check)
                 except:
                     pass
 
