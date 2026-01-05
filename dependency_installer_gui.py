@@ -285,7 +285,8 @@ class InstallerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("HellShared Dependency Installer")
-        self.root.geometry("900x700")
+        self.root.geometry("950x750")
+        self.root.minsize(850, 600)  # Set minimum size to ensure all content is visible
 
         self.steps = []
         self.current_step_index = 0
@@ -675,7 +676,8 @@ class InstallerGUI:
         """Show interactive device.wvd installation wizard with auto-detection"""
         window = Toplevel(self.root)
         window.title("Widevine Device Installation Wizard")
-        window.geometry("700x550")
+        window.geometry("750x580")
+        window.minsize(700, 500)  # Set minimum size
         window.transient(self.root)
         window.grab_set()
         window.lift()
@@ -824,17 +826,40 @@ class InstallerGUI:
                        log_message("Opened forum in browser - download and place files in root directory")
                    ]).pack(side=LEFT, padx=(0, 5))
 
-        ttk.Button(button_frame, text="🔄 Check for Files",
+        ttk.Button(button_frame, text="🔄 Check for Files Now",
                    command=check_and_create).pack(side=LEFT, padx=(0, 5))
 
         ttk.Button(button_frame, text="❌ Close",
                    command=window.destroy).pack(side=RIGHT)
 
-        # Initial check
+        # Periodic auto-check
+        auto_check_active = [True]  # Use list to avoid closure issues
+
+        def periodic_check():
+            """Periodically check for files every 3 seconds"""
+            if auto_check_active[0] and window.winfo_exists():
+                try:
+                    # Only check if device.wvd doesn't exist yet
+                    if not Path("device.wvd").exists():
+                        check_and_create()
+                    window.after(3000, periodic_check)  # Check every 3 seconds
+                except:
+                    pass
+
+        # Stop auto-check when window closes
+        def on_close():
+            auto_check_active[0] = False
+            window.destroy()
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+
+        # Initial check and start periodic checking
         log_message("Wizard started.")
         log_message(f"Root directory: {working_dir}")
+        log_message("Auto-checking every 3 seconds for files...")
         log_message("-" * 60)
-        window.after(500, check_and_create)  # Auto-check after 500ms
+        window.after(500, check_and_create)  # Initial check after 500ms
+        window.after(3500, periodic_check)   # Start periodic checking after 3.5s
 
     def show_n_m3u8dl_re_instructions(self):
         """Show instructions for N_m3u8DL-RE"""
