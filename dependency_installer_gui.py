@@ -9,9 +9,10 @@ import os
 import subprocess
 import platform
 import threading
+import webbrowser
 from pathlib import Path
 from tkinter import *
-from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import ttk, scrolledtext, messagebox
 
 class DependencyInstaller:
     """Handles checking and installing individual dependencies"""
@@ -70,22 +71,31 @@ class DependencyInstaller:
     @staticmethod
     def check_n_m3u8dl_re():
         """Check if N_m3u8DL-RE is available"""
-        return DependencyInstaller.check_command('N_m3u8DL-RE') or Path("bin/N_m3u8DL-RE").exists()
+        # Check in bin/ first, then system PATH
+        if Path("bin/N_m3u8DL-RE").exists():
+            return True
+        return DependencyInstaller.check_command('N_m3u8DL-RE')
 
     @staticmethod
     def check_ffmpeg():
         """Check if ffmpeg is available"""
-        return DependencyInstaller.check_command('ffmpeg') or Path("bin/ffmpeg").exists()
+        if Path("bin/ffmpeg").exists():
+            return True
+        return DependencyInstaller.check_command('ffmpeg')
 
     @staticmethod
     def check_mp4decrypt():
         """Check if mp4decrypt is available"""
-        return DependencyInstaller.check_command('mp4decrypt') or Path("bin/mp4decrypt").exists()
+        if Path("bin/mp4decrypt").exists():
+            return True
+        return DependencyInstaller.check_command('mp4decrypt')
 
     @staticmethod
     def check_mkvmerge():
         """Check if mkvmerge is available"""
-        return DependencyInstaller.check_command('mkvmerge') or Path("bin/mkvmerge").exists()
+        if Path("bin/mkvmerge").exists():
+            return True
+        return DependencyInstaller.check_command('mkvmerge')
 
     @staticmethod
     def check_browser_manifest():
@@ -98,11 +108,15 @@ class DependencyInstaller:
 class DependencyStep:
     """Represents a single installation step with UI elements"""
 
-    def __init__(self, parent_frame, name, description, check_func, install_func, auto_install=True):
+    def __init__(self, parent_frame, gui, name, description, check_func, install_func,
+                 manual_instructions_func=None, auto_install=True):
+        self.parent_frame = parent_frame
+        self.gui = gui
         self.name = name
         self.description = description
         self.check_func = check_func
         self.install_func = install_func
+        self.manual_instructions_func = manual_instructions_func
         self.auto_install = auto_install
         self.is_complete = False
 
@@ -154,21 +168,26 @@ class DependencyStep:
 
         # Manual install button (for non-auto steps)
         if not self.auto_install:
+            print(f"[DEBUG] Creating manual buttons for {self.name}")
             btn_frame = ttk.Frame(self.frame)
             btn_frame.pack(fill=X, padx=30, pady=(0, 10))
+
+            def test_click():
+                print(f"[DEBUG] Button clicked for {self.name}!")
+                self.show_manual_instructions()
 
             self.manual_button = ttk.Button(
                 btn_frame,
                 text="📖 Manual Instructions",
-                command=self.show_manual_instructions
+                command=test_click
             )
             self.manual_button.pack(side=LEFT, padx=5)
+            print(f"[DEBUG] Manual button created for {self.name}")
 
             self.recheck_button = ttk.Button(
                 btn_frame,
                 text="🔄 Re-check",
-                command=self.recheck,
-                state=DISABLED
+                command=self.recheck
             )
             self.recheck_button.pack(side=LEFT, padx=5)
 
@@ -197,9 +216,6 @@ class DependencyStep:
             self.set_status("⚠️ Needs Attention", "orange")
             self.name_label.config(foreground="orange")
 
-            if not self.auto_install:
-                self.recheck_button.config(state=NORMAL)
-
     def check(self):
         """Check if this dependency is installed"""
         try:
@@ -211,19 +227,45 @@ class DependencyStep:
     def recheck(self):
         """Re-check the dependency (for manual steps)"""
         self.set_status("🔄 Checking...", "blue")
+        self.gui.update_progress()
+
         if self.check():
             self.mark_complete(True)
+            self.log("✅ Dependency found!", show_log=False)
+            messagebox.showinfo(
+                "Success!",
+                f"✅ {self.name} is now detected and ready to use!"
+            )
         else:
             self.set_status("⚠️ Still Not Found", "orange")
-            messagebox.showinfo(
+            messagebox.showwarning(
                 "Not Found",
-                f"{self.name} is still not detected.\n\nPlease follow the manual instructions and try again."
+                f"❌ {self.name} is still not detected.\n\nPlease follow the manual instructions and try again."
             )
+
+        self.gui.update_progress()
 
     def show_manual_instructions(self):
         """Show manual installation instructions"""
-        # This will be overridden by specific implementations
-        pass
+        print(f"[DEBUG] show_manual_instructions called for {self.name}")
+        print(f"[DEBUG] manual_instructions_func = {self.manual_instructions_func}")
+
+        if self.manual_instructions_func:
+            try:
+                self.manual_instructions_func()
+            except Exception as e:
+                print(f"[ERROR] Failed to show manual instructions: {e}")
+                import traceback
+                traceback.print_exc()
+                messagebox.showerror(
+                    "Error",
+                    f"Failed to show manual instructions:\n{str(e)}"
+                )
+        else:
+            messagebox.showinfo(
+                "Manual Installation",
+                f"Please install {self.name} manually.\n\nNo specific instructions available."
+            )
 
     def install(self):
         """Install this dependency"""
@@ -255,7 +297,7 @@ class InstallerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("HellShared Dependency Installer")
-        self.root.geometry("900x800")
+        self.root.geometry("900x700")
 
         self.steps = []
         self.current_step_index = 0
@@ -308,24 +350,36 @@ class InstallerGUI:
         canvas_frame = ttk.Frame(self.root)
         canvas_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
 
+        # Create canvas and scrollbar
         canvas = Canvas(canvas_frame, bg="white")
         scrollbar = ttk.Scrollbar(canvas_frame, orient=VERTICAL, command=canvas.yview)
 
+        # Create frame inside canvas
         self.steps_frame = ttk.Frame(canvas)
+
+        # Configure scroll region
         self.steps_frame.bind(
             "<Configure>",
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
 
-        canvas.create_window((0, 0), window=self.steps_frame, anchor="nw")
+        # Create window in canvas
+        canvas.create_window((0, 0), window=self.steps_frame, anchor="nw", width=850)
         canvas.configure(yscrollcommand=scrollbar.set)
 
+        # Pack canvas and scrollbar
         canvas.pack(side=LEFT, fill=BOTH, expand=True)
         scrollbar.pack(side=RIGHT, fill=Y)
 
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
         # Buttons
         button_frame = ttk.Frame(self.root, padding="10")
-        button_frame.pack(fill=X)
+        button_frame.pack(fill=X, side=BOTTOM)
 
         self.install_button = ttk.Button(
             button_frame,
@@ -352,9 +406,13 @@ class InstallerGUI:
         """Setup all installation steps"""
         installer = DependencyInstaller()
 
+        # Ensure bin directory exists
+        Path("bin").mkdir(exist_ok=True)
+
         # Step 1: Python
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "Python 3 & pip",
             "Python 3 interpreter and pip package manager",
             installer.check_python,
@@ -365,6 +423,7 @@ class InstallerGUI:
         # Step 2: Virtual Environment
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "Python Virtual Environment",
             "Create venv and install Python dependencies from requirements.txt",
             installer.check_venv,
@@ -375,60 +434,67 @@ class InstallerGUI:
         # Step 3: Device WVD
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "Widevine Device (device.wvd)",
             "Widevine L3 CDM device file for DRM content",
             installer.check_device_wvd,
             self.install_device_wvd,
+            manual_instructions_func=self.show_device_wvd_instructions,
             auto_install=False
         ))
-        self.steps[-1].show_manual_instructions = lambda: self.show_device_wvd_instructions()
 
         # Step 4: N_m3u8DL-RE
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "N_m3u8DL-RE",
             "HLS/DASH downloader - https://github.com/nilaoda/N_m3u8DL-RE",
             installer.check_n_m3u8dl_re,
             self.install_n_m3u8dl_re,
+            manual_instructions_func=self.show_n_m3u8dl_re_instructions,
             auto_install=False
         ))
-        self.steps[-1].show_manual_instructions = lambda: self.show_n_m3u8dl_re_instructions()
 
         # Step 5: FFmpeg
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "FFmpeg",
             "Audio/video processing tool",
             installer.check_ffmpeg,
             self.install_ffmpeg,
+            manual_instructions_func=self.show_ffmpeg_instructions,
             auto_install=True
         ))
 
         # Step 6: mp4decrypt (Bento4)
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "mp4decrypt (Bento4)",
             "MP4 decryption tool - https://www.bento4.com/downloads/",
             installer.check_mp4decrypt,
             self.install_mp4decrypt,
+            manual_instructions_func=self.show_mp4decrypt_instructions,
             auto_install=False
         ))
-        self.steps[-1].show_manual_instructions = lambda: self.show_mp4decrypt_instructions()
 
         # Step 7: mkvmerge
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "mkvmerge (MKVToolNix)",
             "MKV file manipulation tool - https://mkvtoolnix.download/",
             installer.check_mkvmerge,
             self.install_mkvmerge,
+            manual_instructions_func=self.show_mkvmerge_instructions,
             auto_install=False
         ))
-        self.steps[-1].show_manual_instructions = lambda: self.show_mkvmerge_instructions()
 
         # Step 8: Browser Manifest
         self.steps.append(DependencyStep(
             self.steps_frame,
+            self,
             "Browser Extension Manifest",
             "Native messaging host for browser extension",
             installer.check_browser_manifest,
@@ -442,7 +508,7 @@ class InstallerGUI:
         total = len(self.steps)
 
         self.progress_label.config(text=f"Progress: {completed}/{total} dependencies installed")
-        self.progress_bar['value'] = (completed / total) * 100
+        self.progress_bar['value'] = (completed / total) * 100 if total > 0 else 0
 
         # Update window
         self.root.update()
@@ -611,84 +677,221 @@ class InstallerGUI:
     def install_browser_manifest(self, step):
         """Install browser extension manifest"""
         step.log("Installing browser extension manifest...")
-
-        # Run the browser installation script
-        success, output = DependencyInstaller.run_command(['bash', 'install.sh'], shell=False)
-        step.log(output)
-
-        return success
+        step.log("This step requires running the installation script...")
+        step.log("Please run: bash install/browsers.sh")
+        return False
 
     # Manual instruction dialogs
 
     def show_device_wvd_instructions(self):
         """Show instructions for device.wvd"""
-        msg = """
-📖 Manual Installation: Widevine Device (device.wvd)
+        window = Toplevel(self.root)
+        window.title("Manual Installation: device.wvd")
+        window.geometry("700x500")
 
-You need to obtain a Widevine L3 CDM device file.
+        frame = ttk.Frame(window, padding="20")
+        frame.pack(fill=BOTH, expand=True)
+
+        title = ttk.Label(frame, text="📖 Widevine Device (device.wvd)", font=("Arial", 14, "bold"))
+        title.pack(pady=(0, 10))
+
+        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=20)
+        text.pack(fill=BOTH, expand=True)
+
+        instructions = """You need to obtain a Widevine L3 CDM device file.
 
 Option 1: Use existing client_id.bin and private_key.pem
   1. Place both files in the HellShared directory
-  2. Run: ./venv/bin/pywidevine create-device -k private_key.pem -c client_id.bin -t "ANDROID" -l 3
-  3. Rename the created .wvd file to device.wvd
+  2. Open a terminal in the HellShared directory
+  3. Run: ./venv/bin/pywidevine create-device -k private_key.pem -c client_id.bin -t "ANDROID" -l 3
+  4. Rename the created .wvd file to device.wvd
 
 Option 2: Download from repository
   1. Visit: https://forum.videohelp.com/threads/413719-Ready-to-use-CDMs-available-here
-  2. Download a CDM package
-  3. Extract client_id.bin and private_key.pem
+  2. Download a CDM package containing client_id.bin and private_key.pem
+  3. Extract the files to the HellShared directory
   4. Follow Option 1 steps
 
-After completing the steps, click "Re-check" to verify.
-        """
-        messagebox.showinfo("Manual Installation: device.wvd", msg)
+After completing the steps, close this window and click "Re-check" to verify."""
+
+        text.insert("1.0", instructions)
+        text.config(state=DISABLED)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(pady=(10, 0))
+
+        ttk.Button(btn_frame, text="Open Forum Link",
+                   command=lambda: webbrowser.open("https://forum.videohelp.com/threads/413719-Ready-to-use-CDMs-available-here")).pack(side=LEFT, padx=5)
+        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
 
     def show_n_m3u8dl_re_instructions(self):
         """Show instructions for N_m3u8DL-RE"""
-        msg = """
-📖 Manual Installation: N_m3u8DL-RE
+        window = Toplevel(self.root)
+        window.title("Manual Installation: N_m3u8DL-RE")
+        window.geometry("700x450")
 
-1. Visit: https://github.com/nilaoda/N_m3u8DL-RE/releases
-2. Download the appropriate binary for your platform
-3. Extract the executable
-4. Either:
-   - Place it in the ./bin directory, OR
-   - Place it in a directory in your PATH
+        frame = ttk.Frame(window, padding="20")
+        frame.pack(fill=BOTH, expand=True)
 
-After installing, click "Re-check" to verify.
-        """
-        messagebox.showinfo("Manual Installation: N_m3u8DL-RE", msg)
+        title = ttk.Label(frame, text="📖 N_m3u8DL-RE", font=("Arial", 14, "bold"))
+        title.pack(pady=(0, 10))
+
+        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
+        text.pack(fill=BOTH, expand=True)
+
+        instructions = """N_m3u8DL-RE is a command-line tool for downloading HLS/DASH streams.
+
+Installation Steps:
+  1. Visit: https://github.com/nilaoda/N_m3u8DL-RE/releases
+  2. Download the appropriate binary for your platform:
+     - Linux: N_m3u8DL-RE_Beta_linux-x64
+     - Windows: N_m3u8DL-RE_Beta_win-x64.exe
+     - macOS: N_m3u8DL-RE_Beta_osx-x64
+  3. Extract the executable
+  4. Rename it to: N_m3u8DL-RE (without extension on Linux/macOS)
+  5. Make it executable (Linux/macOS): chmod +x N_m3u8DL-RE
+  6. Place it in: ./bin/N_m3u8DL-RE
+     OR add it to your system PATH
+
+After installation, close this window and click "Re-check" to verify."""
+
+        text.insert("1.0", instructions)
+        text.config(state=DISABLED)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(pady=(10, 0))
+
+        ttk.Button(btn_frame, text="Open GitHub Releases",
+                   command=lambda: webbrowser.open("https://github.com/nilaoda/N_m3u8DL-RE/releases")).pack(side=LEFT, padx=5)
+        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
+
+    def show_ffmpeg_instructions(self):
+        """Show instructions for FFmpeg"""
+        window = Toplevel(self.root)
+        window.title("Manual Installation: FFmpeg")
+        window.geometry("700x450")
+
+        frame = ttk.Frame(window, padding="20")
+        frame.pack(fill=BOTH, expand=True)
+
+        title = ttk.Label(frame, text="📖 FFmpeg", font=("Arial", 14, "bold"))
+        title.pack(pady=(0, 10))
+
+        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
+        text.pack(fill=BOTH, expand=True)
+
+        instructions = """FFmpeg is a powerful multimedia framework.
+
+Installation Options:
+
+Option 1: Package Manager (Recommended)
+  Ubuntu/Debian: sudo apt-get install ffmpeg
+  Fedora: sudo dnf install ffmpeg
+  Arch: sudo pacman -S ffmpeg
+  macOS: brew install ffmpeg
+
+Option 2: Manual Installation
+  1. Visit: https://ffmpeg.org/download.html
+  2. Download the appropriate build for your platform
+  3. Extract the ffmpeg executable
+  4. Place it in: ./bin/ffmpeg
+     OR add it to your system PATH
+
+After installation, close this window and click "Re-check" to verify."""
+
+        text.insert("1.0", instructions)
+        text.config(state=DISABLED)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(pady=(10, 0))
+
+        ttk.Button(btn_frame, text="Open FFmpeg Website",
+                   command=lambda: webbrowser.open("https://ffmpeg.org/download.html")).pack(side=LEFT, padx=5)
+        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
 
     def show_mp4decrypt_instructions(self):
         """Show instructions for mp4decrypt"""
-        msg = """
-📖 Manual Installation: mp4decrypt (Bento4)
+        window = Toplevel(self.root)
+        window.title("Manual Installation: mp4decrypt")
+        window.geometry("700x450")
 
-1. Visit: https://www.bento4.com/downloads/
-2. Download Bento4 tools for your platform
-3. Extract mp4decrypt executable
-4. Either:
-   - Place it in the ./bin directory, OR
-   - Place it in a directory in your PATH
+        frame = ttk.Frame(window, padding="20")
+        frame.pack(fill=BOTH, expand=True)
 
-After installing, click "Re-check" to verify.
-        """
-        messagebox.showinfo("Manual Installation: mp4decrypt", msg)
+        title = ttk.Label(frame, text="📖 mp4decrypt (Bento4)", font=("Arial", 14, "bold"))
+        title.pack(pady=(0, 10))
+
+        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
+        text.pack(fill=BOTH, expand=True)
+
+        instructions = """mp4decrypt is part of the Bento4 toolkit for MP4 files.
+
+Installation Steps:
+  1. Visit: https://www.bento4.com/downloads/
+  2. Download Bento4 tools for your platform:
+     - Linux: Bento4-SDK-*-x86_64-unknown-linux.zip
+     - Windows: Bento4-SDK-*-x86_64-microsoft-win32.zip
+     - macOS: Bento4-SDK-*-universal-apple-macosx.zip
+  3. Extract the archive
+  4. Locate the mp4decrypt executable in the bin/ folder
+  5. Copy mp4decrypt to: ./bin/mp4decrypt
+     OR add it to your system PATH
+
+After installation, close this window and click "Re-check" to verify."""
+
+        text.insert("1.0", instructions)
+        text.config(state=DISABLED)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(pady=(10, 0))
+
+        ttk.Button(btn_frame, text="Open Bento4 Downloads",
+                   command=lambda: webbrowser.open("https://www.bento4.com/downloads/")).pack(side=LEFT, padx=5)
+        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
 
     def show_mkvmerge_instructions(self):
         """Show instructions for mkvmerge"""
-        msg = """
-📖 Manual Installation: mkvmerge (MKVToolNix)
+        window = Toplevel(self.root)
+        window.title("Manual Installation: mkvmerge")
+        window.geometry("700x450")
 
-1. Visit: https://mkvtoolnix.download/downloads.html
-2. Download MKVToolNix for your platform
-3. Install or extract mkvmerge executable
-4. Either:
-   - Place it in the ./bin directory, OR
-   - Place it in a directory in your PATH
+        frame = ttk.Frame(window, padding="20")
+        frame.pack(fill=BOTH, expand=True)
 
-After installing, click "Re-check" to verify.
-        """
-        messagebox.showinfo("Manual Installation: mkvmerge", msg)
+        title = ttk.Label(frame, text="📖 mkvmerge (MKVToolNix)", font=("Arial", 14, "bold"))
+        title.pack(pady=(0, 10))
+
+        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
+        text.pack(fill=BOTH, expand=True)
+
+        instructions = """mkvmerge is part of MKVToolNix for working with Matroska files.
+
+Installation Options:
+
+Option 1: Package Manager (Recommended)
+  Ubuntu/Debian: sudo apt-get install mkvtoolnix
+  Fedora: sudo dnf install mkvtoolnix
+  Arch: sudo pacman -S mkvtoolnix-cli
+  macOS: brew install mkvtoolnix
+
+Option 2: Manual Installation
+  1. Visit: https://mkvtoolnix.download/downloads.html
+  2. Download MKVToolNix for your platform
+  3. Install or extract mkvmerge executable
+  4. Place it in: ./bin/mkvmerge
+     OR add it to your system PATH
+
+After installation, close this window and click "Re-check" to verify."""
+
+        text.insert("1.0", instructions)
+        text.config(state=DISABLED)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(pady=(10, 0))
+
+        ttk.Button(btn_frame, text="Open MKVToolNix Website",
+                   command=lambda: webbrowser.open("https://mkvtoolnix.download/downloads.html")).pack(side=LEFT, padx=5)
+        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
 
 
 def main():
