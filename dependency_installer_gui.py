@@ -1080,44 +1080,174 @@ After installation, close this window and click "Re-check" to verify."""
         ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
 
     def show_mp4decrypt_instructions(self):
-        """Show instructions for mp4decrypt"""
+        """Show interactive mp4decrypt installation wizard with auto-detection"""
         window = Toplevel(self.root)
-        window.title("Manual Installation: mp4decrypt")
-        window.geometry("700x450")
+        window.title("mp4decrypt (Bento4) Installation Wizard")
+        window.geometry("800x550")
+        window.minsize(750, 500)
+        window.maxsize(1200, 800)
+        window.transient(self.root)
+        window.grab_set()
+        window.lift()
+        window.focus_force()
 
-        frame = ttk.Frame(window, padding="20")
-        frame.pack(fill=BOTH, expand=True)
+        main_frame = ttk.Frame(window, padding="10")
+        main_frame.pack(fill=BOTH, expand=True)
 
-        title = ttk.Label(frame, text="📖 mp4decrypt (Bento4)", font=("Arial", 14, "bold"))
+        # Title
+        title = ttk.Label(main_frame, text="📖 mp4decrypt (Bento4)", font=("Arial", 14, "bold"))
         title.pack(pady=(0, 10))
 
-        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
-        text.pack(fill=BOTH, expand=True)
+        # Instructions
+        inst_frame = ttk.LabelFrame(main_frame, text="📋 Instructions", padding="10")
+        inst_frame.pack(fill=X, pady=(0, 10))
 
-        instructions = """mp4decrypt is part of the Bento4 toolkit for MP4 files.
+        bin_dir = Path("./bin").absolute()
+        inst_text = ttk.Label(inst_frame, text=(
+            f"Download Bento4 and extract mp4decrypt to:\n"
+            f"  📁 {bin_dir}/mp4decrypt\n\n"
+            f"Platform-specific packages:\n"
+            f"  • Linux: Bento4-SDK-*-x86_64-unknown-linux.zip\n"
+            f"  • Windows: Bento4-SDK-*-x86_64-microsoft-win32.zip\n"
+            f"  • macOS: Bento4-SDK-*-universal-apple-macosx.zip\n\n"
+            f"The mp4decrypt executable is in the bin/ folder of the archive.\n"
+            f"The wizard will automatically detect when the file is placed."
+        ), font=("Arial", 9), justify=LEFT)
+        inst_text.pack(anchor=W)
 
-Installation Steps:
-  1. Visit: https://www.bento4.com/downloads/
-  2. Download Bento4 tools for your platform:
-     - Linux: Bento4-SDK-*-x86_64-unknown-linux.zip
-     - Windows: Bento4-SDK-*-x86_64-microsoft-win32.zip
-     - macOS: Bento4-SDK-*-universal-apple-macosx.zip
-  3. Extract the archive
-  4. Locate the mp4decrypt executable in the bin/ folder
-  5. Copy mp4decrypt to: ./bin/mp4decrypt
-     OR add it to your system PATH
+        # Status display
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(fill=X, pady=(0, 10))
 
-After installation, close this window and click "Re-check" to verify."""
+        status_label = ttk.Label(status_frame, text="🔍 Checking for mp4decrypt...", font=("Arial", 11, "bold"))
+        status_label.pack()
 
-        text.insert("1.0", instructions)
-        text.config(state=DISABLED)
+        # File status indicator
+        file_status_frame = ttk.Frame(main_frame)
+        file_status_frame.pack(fill=X, pady=(0, 10))
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=(10, 0))
+        file_label = ttk.Label(file_status_frame, text="❌ mp4decrypt: Not found", font=("Arial", 9))
+        file_label.pack(anchor=W, padx=20)
 
-        ttk.Button(btn_frame, text="Open Bento4 Downloads",
-                   command=lambda: webbrowser.open("https://www.bento4.com/downloads/")).pack(side=LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
+        # Buttons frame (pack at bottom first)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(side=BOTTOM, fill=X, pady=(10, 0))
+
+        # Log area
+        log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
+        log_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
+
+        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=10)
+        log_text.pack(fill=BOTH, expand=True)
+
+        def log_message(msg):
+            log_text.insert(END, msg + "\n")
+            log_text.see(END)
+            log_text.update()
+
+        def check_file():
+            """Check if mp4decrypt exists"""
+            log_message("Checking for mp4decrypt...")
+
+            # Check in bin/ directory
+            bin_path = Path("./bin/mp4decrypt")
+            system_path = DependencyInstaller.check_command('mp4decrypt')
+
+            if bin_path.exists():
+                file_label.config(text=f"✅ mp4decrypt: Found in ./bin/", foreground="green")
+                status_label.config(text="✅ mp4decrypt found!", foreground="green")
+                log_message(f"✅ Found: {bin_path.absolute()}")
+
+                # Check if executable
+                if not bin_path.stat().st_mode & 0o111:
+                    log_message("⚠️  File is not executable. Making it executable...")
+                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                    log_message("✅ File is now executable")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "mp4decrypt (Bento4)":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ mp4decrypt has been found and configured!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            elif system_path:
+                file_label.config(text="✅ mp4decrypt: Found in system PATH", foreground="green")
+                status_label.config(text="✅ mp4decrypt found in system!", foreground="green")
+                log_message("✅ Found in system PATH")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "mp4decrypt (Bento4)":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ mp4decrypt is installed in your system!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            else:
+                file_label.config(text="❌ mp4decrypt: Not found", foreground="red")
+                status_label.config(text="⏳ Waiting for file to be placed in ./bin/", foreground="orange")
+                log_message(f"❌ Not found in: {bin_path.absolute()}")
+                log_message("❌ Not found in system PATH")
+                log_message("⏳ Waiting for file...")
+                return False
+
+        # Add buttons
+        ttk.Button(button_frame, text="🌐 Open Bento4 Downloads Page",
+                   command=lambda: [
+                       webbrowser.open("https://www.bento4.com/downloads/"),
+                       log_message("Opened Bento4 downloads in browser")
+                   ]).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="🔄 Check for File Now",
+                   command=check_file).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="❌ Close",
+                   command=window.destroy).pack(side=RIGHT)
+
+        # Periodic auto-check
+        auto_check_active = [True]
+
+        def periodic_check():
+            """Periodically check for file every 3 seconds"""
+            if auto_check_active[0] and window.winfo_exists():
+                try:
+                    result = check_file()
+                    if not result:
+                        window.after(3000, periodic_check)
+                except:
+                    pass
+
+        def on_close():
+            auto_check_active[0] = False
+            window.destroy()
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+
+        # Initial check
+        log_message("Wizard started.")
+        log_message(f"Target directory: {bin_dir}")
+        log_message("Auto-checking every 3 seconds for file...")
+        log_message("-" * 60)
+        window.after(500, check_file)
+        window.after(3500, periodic_check)
 
     def show_mkvmerge_instructions(self):
         """Show instructions for mkvmerge"""
