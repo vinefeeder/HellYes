@@ -460,6 +460,13 @@ class AutoProcessorGUI:
         )
         self.clear_button.pack(side=LEFT, padx=5)
 
+        self.install_button = ttk.Button(
+            button_frame,
+            text="Install Dependencies",
+            command=self.run_installer
+        )
+        self.install_button.pack(side=LEFT, padx=5)
+
         # Auto-process checkbox
         self.auto_var = BooleanVar(value=True)
         self.auto_checkbox = ttk.Checkbutton(
@@ -515,6 +522,35 @@ class AutoProcessorGUI:
     def clear_main_log(self):
         self.main_log_text.delete(1.0, END)
         self.main_log("Main log cleared")
+
+    def run_installer(self):
+        """Launch the dependency installer GUI"""
+        installer_script = Path("./dependency_installer_gui.py")
+
+        if not installer_script.exists():
+            messagebox.showerror(
+                "Installer Not Found",
+                "dependency_installer_gui.py not found in the current directory."
+            )
+            return
+
+        self.main_log("Launching dependency installer GUI...")
+
+        try:
+            # Launch the installer GUI as a separate process
+            if platform.system() == 'Windows':
+                subprocess.Popen(['python', str(installer_script)])
+            else:
+                subprocess.Popen(['python3', str(installer_script)])
+
+            self.main_log("✓ Dependency installer GUI launched")
+
+        except Exception as e:
+            self.main_log(f"✗ Error launching installer: {str(e)}")
+            messagebox.showerror(
+                "Launch Error",
+                f"Failed to launch installer:\n{str(e)}"
+            )
 
     def toggle_auto_process(self):
         self.auto_process = self.auto_var.get()
