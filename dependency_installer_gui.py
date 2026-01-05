@@ -454,7 +454,7 @@ class InstallerGUI:
             installer.check_ffmpeg,
             self.install_ffmpeg,
             manual_instructions_func=self.show_ffmpeg_instructions,
-            auto_install=True
+            auto_install=False
         ))
 
         # Step 6: mp4decrypt (Bento4)
@@ -1059,8 +1059,8 @@ class InstallerGUI:
         """Show interactive FFmpeg installation wizard with auto-detection"""
         window = Toplevel(self.root)
         window.title("FFmpeg Installation Wizard")
-        window.geometry("800x550")
-        window.minsize(750, 500)
+        window.geometry("800x600")
+        window.minsize(750, 550)
         window.maxsize(1200, 800)
         window.transient(self.root)
         window.grab_set()
@@ -1079,16 +1079,41 @@ class InstallerGUI:
         inst_frame.pack(fill=X, pady=(0, 10))
 
         bin_dir = Path("./bin").absolute()
-        inst_text = ttk.Label(inst_frame, text=(
-            f"Install FFmpeg using package manager OR place it in:\n"
-            f"  📁 {bin_dir}/ffmpeg\n\n"
-            f"Recommended: Install via package manager\n"
-            f"  • Ubuntu/Debian: sudo apt-get install ffmpeg\n"
-            f"  • Fedora: sudo dnf install ffmpeg\n"
-            f"  • Arch: sudo pacman -S ffmpeg\n"
-            f"  • macOS: brew install ffmpeg\n\n"
-            f"The wizard will automatically detect when FFmpeg is available."
-        ), font=("Arial", 9), justify=LEFT)
+
+        # Detect package manager
+        detected_pm = None
+        install_cmd = None
+        pkg_managers = {
+            'apt-get': 'sudo apt-get update && sudo apt-get install -y ffmpeg',
+            'dnf': 'sudo dnf install -y ffmpeg',
+            'yum': 'sudo yum install -y ffmpeg',
+            'pacman': 'sudo pacman -S --noconfirm ffmpeg',
+            'brew': 'brew install ffmpeg'
+        }
+
+        for pm, cmd in pkg_managers.items():
+            if DependencyInstaller.check_command(pm):
+                detected_pm = pm
+                install_cmd = cmd
+                break
+
+        if detected_pm:
+            inst_text = ttk.Label(inst_frame, text=(
+                f"Package manager detected: {detected_pm}\n\n"
+                f"Click 'Install FFmpeg with {detected_pm}' to automatically install.\n"
+                f"This will run: {install_cmd}\n\n"
+                f"Alternatively, download FFmpeg manually and place it in:\n"
+                f"  📁 {bin_dir}/ffmpeg\n\n"
+                f"The wizard will automatically detect when FFmpeg is available."
+            ), font=("Arial", 9), justify=LEFT)
+        else:
+            inst_text = ttk.Label(inst_frame, text=(
+                f"No package manager detected.\n\n"
+                f"Download FFmpeg and place it in:\n"
+                f"  📁 {bin_dir}/ffmpeg\n\n"
+                f"The wizard will automatically detect when the file is placed."
+            ), font=("Arial", 9), justify=LEFT)
+
         inst_text.pack(anchor=W)
 
         # Status display
@@ -1182,10 +1207,58 @@ class InstallerGUI:
                 status_label.config(text="⏳ Waiting for FFmpeg to be installed", foreground="orange")
                 log_message(f"❌ Not found in: {bin_path.absolute()}")
                 log_message("❌ Not found in system PATH")
-                log_message("⏳ Install using package manager or place in ./bin/")
+                log_message("⏳ Waiting for installation...")
                 return False
 
+        def install_with_package_manager():
+            """Install FFmpeg using detected package manager"""
+            if not detected_pm or not install_cmd:
+                log_message("❌ No package manager available for installation")
+                return
+
+            status_label.config(text="📦 Installing FFmpeg...", foreground="blue")
+            log_message("=" * 60)
+            log_message(f"Installing FFmpeg with {detected_pm}...")
+            log_message(f"Running: {install_cmd}")
+            log_message("This may take a few moments and will require sudo password...")
+            log_message("=" * 60)
+
+            # Disable install button during installation
+            install_btn.config(state=DISABLED)
+
+            def run_install():
+                try:
+                    success, output = DependencyInstaller.run_command(install_cmd, shell=True)
+                    log_message(output)
+
+                    if success:
+                        log_message("=" * 60)
+                        log_message("✅ Installation command completed successfully!")
+                        log_message("Checking for FFmpeg...")
+
+                        # Check if FFmpeg is now available
+                        window.after(1000, check_file)
+                    else:
+                        log_message("=" * 60)
+                        log_message("❌ Installation command failed.")
+                        log_message("You may need to install FFmpeg manually.")
+                        status_label.config(text="❌ Installation failed", foreground="red")
+                        install_btn.config(state=NORMAL)
+
+                except Exception as e:
+                    log_message(f"❌ Error during installation: {str(e)}")
+                    status_label.config(text="❌ Installation error", foreground="red")
+                    install_btn.config(state=NORMAL)
+
+            # Run installation in a thread to avoid blocking UI
+            threading.Thread(target=run_install, daemon=True).start()
+
         # Add buttons
+        if detected_pm:
+            install_btn = ttk.Button(button_frame, text=f"📦 Install FFmpeg with {detected_pm}",
+                       command=install_with_package_manager)
+            install_btn.pack(side=LEFT, padx=(0, 5))
+
         ttk.Button(button_frame, text="🌐 Open FFmpeg Download Page",
                    command=lambda: [
                        webbrowser.open("https://ffmpeg.org/download.html"),
@@ -1219,6 +1292,11 @@ class InstallerGUI:
 
         # Initial check
         log_message("Wizard started.")
+        if detected_pm:
+            log_message(f"Detected package manager: {detected_pm}")
+            log_message(f"Available command: {install_cmd}")
+        else:
+            log_message("No package manager detected - manual installation required")
         log_message(f"Target directory: {bin_dir}")
         log_message("Auto-checking every 3 seconds...")
         log_message("-" * 60)
@@ -1354,6 +1432,49 @@ class InstallerGUI:
                 log_message("❌ Not found in system PATH")
                 log_message("⏳ Waiting for file...")
                 return False
+
+        def install_with_package_manager():
+            """Install FFmpeg using detected package manager"""
+            if not detected_pm or not install_cmd:
+                log_message("❌ No package manager available for installation")
+                return
+
+            status_label.config(text="📦 Installing FFmpeg...", foreground="blue")
+            log_message("=" * 60)
+            log_message(f"Installing FFmpeg with {detected_pm}...")
+            log_message(f"Running: {install_cmd}")
+            log_message("This may take a few moments and will require sudo password...")
+            log_message("=" * 60)
+
+            # Disable install button during installation
+            install_btn.config(state=DISABLED)
+
+            def run_install():
+                try:
+                    success, output = DependencyInstaller.run_command(install_cmd, shell=True)
+                    log_message(output)
+
+                    if success:
+                        log_message("=" * 60)
+                        log_message("✅ Installation command completed successfully!")
+                        log_message("Checking for FFmpeg...")
+
+                        # Check if FFmpeg is now available
+                        window.after(1000, check_file)
+                    else:
+                        log_message("=" * 60)
+                        log_message("❌ Installation command failed.")
+                        log_message("You may need to install FFmpeg manually.")
+                        status_label.config(text="❌ Installation failed", foreground="red")
+                        install_btn.config(state=NORMAL)
+
+                except Exception as e:
+                    log_message(f"❌ Error during installation: {str(e)}")
+                    status_label.config(text="❌ Installation error", foreground="red")
+                    install_btn.config(state=NORMAL)
+
+            # Run installation in a thread to avoid blocking UI
+            threading.Thread(target=run_install, daemon=True).start()
 
         # Add buttons
         ttk.Button(button_frame, text="🌐 Open Bento4 Downloads Page",
@@ -1559,6 +1680,11 @@ class InstallerGUI:
 
         # Initial check
         log_message("Wizard started.")
+        if detected_pm:
+            log_message(f"Detected package manager: {detected_pm}")
+            log_message(f"Available command: {install_cmd}")
+        else:
+            log_message("No package manager detected - manual installation required")
         log_message(f"Target directory: {bin_dir}")
         log_message("Auto-checking every 3 seconds...")
         log_message("-" * 60)
