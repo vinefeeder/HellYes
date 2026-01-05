@@ -53,7 +53,11 @@ class DependencyInstaller:
     @staticmethod
     def check_python():
         """Check if Python 3 and pip3 are available"""
-        return DependencyInstaller.check_command('python3') and DependencyInstaller.check_command('pip3')
+        if platform.system() == 'Windows':
+            # On Windows, check for python and pip (not python3/pip3)
+            return DependencyInstaller.check_command('python') and DependencyInstaller.check_command('pip')
+        else:
+            return DependencyInstaller.check_command('python3') and DependencyInstaller.check_command('pip3')
 
     @staticmethod
     def check_venv():
@@ -72,36 +76,57 @@ class DependencyInstaller:
     def check_n_m3u8dl_re():
         """Check if N_m3u8DL-RE is available"""
         # Check in bin/ first, then system PATH
-        if Path("bin/N_m3u8DL-RE").exists():
-            return True
+        if platform.system() == 'Windows':
+            if Path("bin/N_m3u8DL-RE.exe").exists():
+                return True
+        else:
+            if Path("bin/N_m3u8DL-RE").exists():
+                return True
         return DependencyInstaller.check_command('N_m3u8DL-RE')
 
     @staticmethod
     def check_ffmpeg():
         """Check if ffmpeg is available"""
-        if Path("bin/ffmpeg").exists():
-            return True
+        if platform.system() == 'Windows':
+            if Path("bin/ffmpeg.exe").exists():
+                return True
+        else:
+            if Path("bin/ffmpeg").exists():
+                return True
         return DependencyInstaller.check_command('ffmpeg')
 
     @staticmethod
     def check_mp4decrypt():
         """Check if mp4decrypt is available"""
-        if Path("bin/mp4decrypt").exists():
-            return True
+        if platform.system() == 'Windows':
+            if Path("bin/mp4decrypt.exe").exists():
+                return True
+        else:
+            if Path("bin/mp4decrypt").exists():
+                return True
         return DependencyInstaller.check_command('mp4decrypt')
 
     @staticmethod
     def check_mkvmerge():
         """Check if mkvmerge is available"""
-        if Path("bin/mkvmerge").exists():
-            return True
+        if platform.system() == 'Windows':
+            if Path("bin/mkvmerge.exe").exists():
+                return True
+        else:
+            if Path("bin/mkvmerge").exists():
+                return True
         return DependencyInstaller.check_command('mkvmerge')
 
     @staticmethod
     def check_browser_manifest():
         """Check if browser manifest is installed"""
-        chrome_manifest = Path.home() / ".config/google-chrome/NativeMessagingHosts/org.hellyes.hellyes.json"
-        firefox_manifest = Path.home() / ".mozilla/native-messaging-hosts/org.hellyes.hellyes.json"
+        if platform.system() == 'Windows':
+            # Windows uses registry, but we can check some common file locations
+            chrome_manifest = Path.home() / "AppData/Local/Google/Chrome/User Data/NativeMessagingHosts/org.hellyes.hellyes.json"
+            firefox_manifest = Path.home() / "AppData/Roaming/Mozilla/NativeMessagingHosts/org.hellyes.hellyes.json"
+        else:
+            chrome_manifest = Path.home() / ".config/google-chrome/NativeMessagingHosts/org.hellyes.hellyes.json"
+            firefox_manifest = Path.home() / ".mozilla/native-messaging-hosts/org.hellyes.hellyes.json"
         return chrome_manifest.exists() or firefox_manifest.exists()
 
 
@@ -579,7 +604,13 @@ class InstallerGUI:
 
     def install_python(self, step):
         """Install Python (auto-detect package manager)"""
-        # Detect package manager
+        if platform.system() == 'Windows':
+            step.log("On Windows, please download and install Python from:")
+            step.log("https://www.python.org/downloads/")
+            step.log("Make sure to check 'Add Python to PATH' during installation!")
+            return False
+
+        # Detect package manager (Linux/macOS)
         pkg_managers = {
             'apt-get': 'sudo apt-get update && sudo apt-get install -y python3 python3-pip',
             'dnf': 'sudo dnf install -y python3 python3-pip',
@@ -603,7 +634,10 @@ class InstallerGUI:
     def install_venv(self, step):
         """Create virtual environment and install dependencies"""
         step.log("Creating virtual environment...")
-        success, output = DependencyInstaller.run_command(['python3', '-m', 'venv', 'venv'])
+
+        # Use python or python3 depending on platform
+        python_cmd = 'python' if platform.system() == 'Windows' else 'python3'
+        success, output = DependencyInstaller.run_command([python_cmd, '-m', 'venv', 'venv'])
         step.log(output)
 
         if not success:
@@ -789,8 +823,12 @@ class InstallerGUI:
 
                 try:
                     # Run pywidevine command
-                    cmd = ['./venv/bin/pywidevine', 'create-device', '-k', 'private_key.pem',
-                           '-c', 'client_id.bin', '-t', 'ANDROID', '-l', '3']
+                    if platform.system() == 'Windows':
+                        cmd = ['venv\\Scripts\\pywidevine.exe', 'create-device', '-k', 'private_key.pem',
+                               '-c', 'client_id.bin', '-t', 'ANDROID', '-l', '3']
+                    else:
+                        cmd = ['./venv/bin/pywidevine', 'create-device', '-k', 'private_key.pem',
+                               '-c', 'client_id.bin', '-t', 'ANDROID', '-l', '3']
 
                     log_message(f"Running: {' '.join(cmd)}")
 
@@ -908,13 +946,23 @@ class InstallerGUI:
         inst_frame.pack(fill=X, pady=(0, 10))
 
         bin_dir = Path("./bin").absolute()
+
+        # Determine expected filename based on platform
+        if platform.system() == 'Windows':
+            expected_filename = "N_m3u8DL-RE.exe"
+            download_filename = "N_m3u8DL-RE_Beta_win-x64.exe"
+        elif platform.system() == 'Darwin':
+            expected_filename = "N_m3u8DL-RE"
+            download_filename = "N_m3u8DL-RE_Beta_osx-x64"
+        else:
+            expected_filename = "N_m3u8DL-RE"
+            download_filename = "N_m3u8DL-RE_Beta_linux-x64"
+
         inst_text = ttk.Label(inst_frame, text=(
-            f"Download N_m3u8DL-RE and place it in:\n"
-            f"  📁 {bin_dir}/N_m3u8DL-RE\n\n"
-            f"Platform-specific filenames:\n"
-            f"  • Linux: N_m3u8DL-RE_Beta_linux-x64\n"
-            f"  • Windows: N_m3u8DL-RE_Beta_win-x64.exe\n"
-            f"  • macOS: N_m3u8DL-RE_Beta_osx-x64\n\n"
+            f"Download N_m3u8DL-RE and rename it to:\n"
+            f"  📁 {bin_dir}/{expected_filename}\n\n"
+            f"Download: {download_filename}\n"
+            f"Rename to: {expected_filename}\n\n"
             f"The wizard will automatically detect when the file is placed."
         ), font=("Arial", 9), justify=LEFT)
         inst_text.pack(anchor=W)
@@ -953,8 +1001,12 @@ class InstallerGUI:
             """Check if N_m3u8DL-RE exists"""
             log_message("Checking for N_m3u8DL-RE...")
 
-            # Check in bin/ directory
-            bin_path = Path("./bin/N_m3u8DL-RE")
+            # Check in bin/ directory - use platform-specific filename
+            if platform.system() == 'Windows':
+                bin_path = Path("./bin/N_m3u8DL-RE.exe")
+            else:
+                bin_path = Path("./bin/N_m3u8DL-RE")
+
             system_path = DependencyInstaller.check_command('N_m3u8DL-RE')
 
             if bin_path.exists():
@@ -962,11 +1014,12 @@ class InstallerGUI:
                 status_label.config(text="✅ N_m3u8DL-RE found!", foreground="green")
                 log_message(f"✅ Found: {bin_path.absolute()}")
 
-                # Check if executable
-                if not bin_path.stat().st_mode & 0o111:
-                    log_message("⚠️  File is not executable. Making it executable...")
-                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
-                    log_message("✅ File is now executable")
+                # Check if executable (skip on Windows)
+                if platform.system() != 'Windows':
+                    if not bin_path.stat().st_mode & 0o111:
+                        log_message("⚠️  File is not executable. Making it executable...")
+                        bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                        log_message("✅ File is now executable")
 
                 # Update the main installer step
                 for step in self.steps:
@@ -1083,19 +1136,33 @@ class InstallerGUI:
         # Detect package manager
         detected_pm = None
         install_cmd = None
-        pkg_managers = {
-            'apt-get': 'sudo apt-get update && sudo apt-get install -y ffmpeg',
-            'dnf': 'sudo dnf install -y ffmpeg',
-            'yum': 'sudo yum install -y ffmpeg',
-            'pacman': 'sudo pacman -S --noconfirm ffmpeg',
-            'brew': 'brew install ffmpeg'
-        }
 
-        for pm, cmd in pkg_managers.items():
-            if DependencyInstaller.check_command(pm):
-                detected_pm = pm
-                install_cmd = cmd
-                break
+        if platform.system() == 'Windows':
+            # Windows: Check for chocolatey or scoop
+            if DependencyInstaller.check_command('choco'):
+                detected_pm = 'choco'
+                install_cmd = 'choco install ffmpeg -y'
+            elif DependencyInstaller.check_command('scoop'):
+                detected_pm = 'scoop'
+                install_cmd = 'scoop install ffmpeg'
+        else:
+            # Linux/macOS package managers
+            pkg_managers = {
+                'apt-get': 'sudo apt-get update && sudo apt-get install -y ffmpeg',
+                'dnf': 'sudo dnf install -y ffmpeg',
+                'yum': 'sudo yum install -y ffmpeg',
+                'pacman': 'sudo pacman -S --noconfirm ffmpeg',
+                'brew': 'brew install ffmpeg'
+            }
+
+            for pm, cmd in pkg_managers.items():
+                if DependencyInstaller.check_command(pm):
+                    detected_pm = pm
+                    install_cmd = cmd
+                    break
+
+        # Determine expected filename
+        expected_filename = "ffmpeg.exe" if platform.system() == 'Windows' else "ffmpeg"
 
         if detected_pm:
             inst_text = ttk.Label(inst_frame, text=(
@@ -1103,16 +1170,26 @@ class InstallerGUI:
                 f"Click 'Install FFmpeg with {detected_pm}' to automatically install.\n"
                 f"This will run: {install_cmd}\n\n"
                 f"Alternatively, download FFmpeg manually and place it in:\n"
-                f"  📁 {bin_dir}/ffmpeg\n\n"
+                f"  📁 {bin_dir}/{expected_filename}\n\n"
                 f"The wizard will automatically detect when FFmpeg is available."
             ), font=("Arial", 9), justify=LEFT)
         else:
-            inst_text = ttk.Label(inst_frame, text=(
-                f"No package manager detected.\n\n"
-                f"Download FFmpeg and place it in:\n"
-                f"  📁 {bin_dir}/ffmpeg\n\n"
-                f"The wizard will automatically detect when the file is placed."
-            ), font=("Arial", 9), justify=LEFT)
+            if platform.system() == 'Windows':
+                inst_text = ttk.Label(inst_frame, text=(
+                    f"No package manager detected.\n\n"
+                    f"Download FFmpeg for Windows from:\n"
+                    f"https://www.gyan.dev/ffmpeg/builds/\n\n"
+                    f"Extract and place ffmpeg.exe in:\n"
+                    f"  📁 {bin_dir}/{expected_filename}\n\n"
+                    f"The wizard will automatically detect when the file is placed."
+                ), font=("Arial", 9), justify=LEFT)
+            else:
+                inst_text = ttk.Label(inst_frame, text=(
+                    f"No package manager detected.\n\n"
+                    f"Download FFmpeg and place it in:\n"
+                    f"  📁 {bin_dir}/{expected_filename}\n\n"
+                    f"The wizard will automatically detect when the file is placed."
+                ), font=("Arial", 9), justify=LEFT)
 
         inst_text.pack(anchor=W)
 
@@ -1150,8 +1227,12 @@ class InstallerGUI:
             """Check if FFmpeg exists"""
             log_message("Checking for FFmpeg...")
 
-            # Check in bin/ directory
-            bin_path = Path("./bin/ffmpeg")
+            # Check in bin/ directory - use platform-specific filename
+            if platform.system() == 'Windows':
+                bin_path = Path("./bin/ffmpeg.exe")
+            else:
+                bin_path = Path("./bin/ffmpeg")
+
             system_path = DependencyInstaller.check_command('ffmpeg')
 
             if bin_path.exists():
@@ -1159,11 +1240,12 @@ class InstallerGUI:
                 status_label.config(text="✅ FFmpeg found!", foreground="green")
                 log_message(f"✅ Found: {bin_path.absolute()}")
 
-                # Check if executable
-                if not bin_path.stat().st_mode & 0o111:
-                    log_message("⚠️  File is not executable. Making it executable...")
-                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
-                    log_message("✅ File is now executable")
+                # Check if executable (skip on Windows)
+                if platform.system() != 'Windows':
+                    if not bin_path.stat().st_mode & 0o111:
+                        log_message("⚠️  File is not executable. Making it executable...")
+                        bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                        log_message("✅ File is now executable")
 
                 # Update the main installer step
                 for step in self.steps:
@@ -1217,13 +1299,17 @@ class InstallerGUI:
                 return
 
             # Ask for confirmation first
-            if not messagebox.askyesno(
-                "Install FFmpeg",
-                f"This will install FFmpeg using {detected_pm}.\n\n"
-                f"Command: {install_cmd}\n\n"
-                f"A terminal window will open to ask for your sudo password.\n\n"
-                f"Continue?"
-            ):
+            confirm_msg = f"This will install FFmpeg using {detected_pm}.\n\n"
+            confirm_msg += f"Command: {install_cmd}\n\n"
+
+            if platform.system() == 'Windows':
+                confirm_msg += "A command prompt window will open.\n\n"
+            else:
+                confirm_msg += "A terminal window will open to ask for your sudo password.\n\n"
+
+            confirm_msg += "Continue?"
+
+            if not messagebox.askyesno("Install FFmpeg", confirm_msg):
                 log_message("Installation cancelled by user")
                 return
 
@@ -1231,7 +1317,12 @@ class InstallerGUI:
             log_message("=" * 60)
             log_message(f"Installing FFmpeg with {detected_pm}...")
             log_message(f"Running: {install_cmd}")
-            log_message("A terminal window will open - please enter your sudo password there")
+
+            if platform.system() == 'Windows':
+                log_message("A command prompt window will open")
+            else:
+                log_message("A terminal window will open - please enter your sudo password there")
+
             log_message("=" * 60)
 
             # Disable install button during installation
@@ -1239,22 +1330,26 @@ class InstallerGUI:
 
             def run_install():
                 try:
-                    # Use a terminal to run the command so user can enter sudo password
-                    # Try different terminal emulators
+                    # Use a terminal to run the command
                     terminal_cmd = None
 
-                    if DependencyInstaller.check_command('x-terminal-emulator'):
-                        terminal_cmd = f'x-terminal-emulator -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
-                    elif DependencyInstaller.check_command('gnome-terminal'):
-                        terminal_cmd = f'gnome-terminal -- bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
-                    elif DependencyInstaller.check_command('xterm'):
-                        terminal_cmd = f'xterm -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
-                    elif DependencyInstaller.check_command('konsole'):
-                        terminal_cmd = f'konsole -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                    if platform.system() == 'Windows':
+                        # Windows: Use cmd.exe or PowerShell
+                        terminal_cmd = f'cmd.exe /c "start cmd.exe /k \"{install_cmd} & echo. & echo Press any key to close... & pause > nul\""'
                     else:
-                        # Fallback: try to run without terminal (won't work for sudo)
-                        log_message("⚠️  No terminal emulator found. Attempting direct execution...")
-                        terminal_cmd = install_cmd
+                        # Linux/macOS: Try different terminal emulators
+                        if DependencyInstaller.check_command('x-terminal-emulator'):
+                            terminal_cmd = f'x-terminal-emulator -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                        elif DependencyInstaller.check_command('gnome-terminal'):
+                            terminal_cmd = f'gnome-terminal -- bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                        elif DependencyInstaller.check_command('xterm'):
+                            terminal_cmd = f'xterm -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                        elif DependencyInstaller.check_command('konsole'):
+                            terminal_cmd = f'konsole -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                        else:
+                            # Fallback: try to run without terminal (won't work for sudo)
+                            log_message("⚠️  No terminal emulator found. Attempting direct execution...")
+                            terminal_cmd = install_cmd
 
                     log_message(f"Executing: {terminal_cmd}")
 
@@ -1356,13 +1451,23 @@ class InstallerGUI:
         inst_frame.pack(fill=X, pady=(0, 10))
 
         bin_dir = Path("./bin").absolute()
+
+        # Determine expected filename based on platform
+        if platform.system() == 'Windows':
+            expected_filename = "mp4decrypt.exe"
+            download_package = "Bento4-SDK-*-x86_64-microsoft-win32.zip"
+        elif platform.system() == 'Darwin':
+            expected_filename = "mp4decrypt"
+            download_package = "Bento4-SDK-*-universal-apple-macosx.zip"
+        else:
+            expected_filename = "mp4decrypt"
+            download_package = "Bento4-SDK-*-x86_64-unknown-linux.zip"
+
         inst_text = ttk.Label(inst_frame, text=(
             f"Download Bento4 and extract mp4decrypt to:\n"
-            f"  📁 {bin_dir}/mp4decrypt\n\n"
-            f"Platform-specific packages:\n"
-            f"  • Linux: Bento4-SDK-*-x86_64-unknown-linux.zip\n"
-            f"  • Windows: Bento4-SDK-*-x86_64-microsoft-win32.zip\n"
-            f"  • macOS: Bento4-SDK-*-universal-apple-macosx.zip\n\n"
+            f"  📁 {bin_dir}/{expected_filename}\n\n"
+            f"Download package for your platform:\n"
+            f"  • {download_package}\n\n"
             f"The mp4decrypt executable is in the bin/ folder of the archive.\n"
             f"The wizard will automatically detect when the file is placed."
         ), font=("Arial", 9), justify=LEFT)
@@ -1402,8 +1507,12 @@ class InstallerGUI:
             """Check if mp4decrypt exists"""
             log_message("Checking for mp4decrypt...")
 
-            # Check in bin/ directory
-            bin_path = Path("./bin/mp4decrypt")
+            # Check in bin/ directory - use platform-specific filename
+            if platform.system() == 'Windows':
+                bin_path = Path("./bin/mp4decrypt.exe")
+            else:
+                bin_path = Path("./bin/mp4decrypt")
+
             system_path = DependencyInstaller.check_command('mp4decrypt')
 
             if bin_path.exists():
@@ -1411,11 +1520,12 @@ class InstallerGUI:
                 status_label.config(text="✅ mp4decrypt found!", foreground="green")
                 log_message(f"✅ Found: {bin_path.absolute()}")
 
-                # Check if executable
-                if not bin_path.stat().st_mode & 0o111:
-                    log_message("⚠️  File is not executable. Making it executable...")
-                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
-                    log_message("✅ File is now executable")
+                # Check if executable (skip on Windows)
+                if platform.system() != 'Windows':
+                    if not bin_path.stat().st_mode & 0o111:
+                        log_message("⚠️  File is not executable. Making it executable...")
+                        bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                        log_message("✅ File is now executable")
 
                 # Update the main installer step
                 for step in self.steps:
@@ -1569,16 +1679,30 @@ class InstallerGUI:
         inst_frame.pack(fill=X, pady=(0, 10))
 
         bin_dir = Path("./bin").absolute()
-        inst_text = ttk.Label(inst_frame, text=(
-            f"Install mkvmerge using package manager OR place it in:\n"
-            f"  📁 {bin_dir}/mkvmerge\n\n"
-            f"Recommended: Install via package manager\n"
-            f"  • Ubuntu/Debian: sudo apt-get install mkvtoolnix\n"
-            f"  • Fedora: sudo dnf install mkvtoolnix\n"
-            f"  • Arch: sudo pacman -S mkvtoolnix-cli\n"
-            f"  • macOS: brew install mkvtoolnix\n\n"
-            f"The wizard will automatically detect when mkvmerge is available."
-        ), font=("Arial", 9), justify=LEFT)
+
+        # Determine expected filename based on platform
+        expected_filename = "mkvmerge.exe" if platform.system() == 'Windows' else "mkvmerge"
+
+        if platform.system() == 'Windows':
+            inst_text = ttk.Label(inst_frame, text=(
+                f"Download MKVToolNix for Windows and extract mkvmerge.exe to:\n"
+                f"  📁 {bin_dir}/{expected_filename}\n\n"
+                f"Download from: https://mkvtoolnix.download/downloads.html\n\n"
+                f"Or install with chocolatey: choco install mkvtoolnix\n\n"
+                f"The wizard will automatically detect when mkvmerge is available."
+            ), font=("Arial", 9), justify=LEFT)
+        else:
+            inst_text = ttk.Label(inst_frame, text=(
+                f"Install mkvmerge using package manager OR place it in:\n"
+                f"  📁 {bin_dir}/{expected_filename}\n\n"
+                f"Recommended: Install via package manager\n"
+                f"  • Ubuntu/Debian: sudo apt-get install mkvtoolnix\n"
+                f"  • Fedora: sudo dnf install mkvtoolnix\n"
+                f"  • Arch: sudo pacman -S mkvtoolnix-cli\n"
+                f"  • macOS: brew install mkvtoolnix\n\n"
+                f"The wizard will automatically detect when mkvmerge is available."
+            ), font=("Arial", 9), justify=LEFT)
+
         inst_text.pack(anchor=W)
 
         # Status display
@@ -1615,8 +1739,12 @@ class InstallerGUI:
             """Check if mkvmerge exists"""
             log_message("Checking for mkvmerge...")
 
-            # Check in bin/ directory
-            bin_path = Path("./bin/mkvmerge")
+            # Check in bin/ directory - use platform-specific filename
+            if platform.system() == 'Windows':
+                bin_path = Path("./bin/mkvmerge.exe")
+            else:
+                bin_path = Path("./bin/mkvmerge")
+
             system_path = DependencyInstaller.check_command('mkvmerge')
 
             if bin_path.exists():
@@ -1624,11 +1752,12 @@ class InstallerGUI:
                 status_label.config(text="✅ mkvmerge found!", foreground="green")
                 log_message(f"✅ Found: {bin_path.absolute()}")
 
-                # Check if executable
-                if not bin_path.stat().st_mode & 0o111:
-                    log_message("⚠️  File is not executable. Making it executable...")
-                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
-                    log_message("✅ File is now executable")
+                # Check if executable (skip on Windows)
+                if platform.system() != 'Windows':
+                    if not bin_path.stat().st_mode & 0o111:
+                        log_message("⚠️  File is not executable. Making it executable...")
+                        bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                        log_message("✅ File is now executable")
 
                 # Update the main installer step
                 for step in self.steps:
