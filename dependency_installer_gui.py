@@ -285,8 +285,9 @@ class InstallerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("HellShared Dependency Installer")
-        self.root.geometry("950x750")
-        self.root.minsize(850, 600)  # Set minimum size to ensure all content is visible
+        self.root.geometry("950x800")
+        self.root.minsize(900, 700)  # Set minimum size to ensure all content is visible
+        self.root.maxsize(1400, 900)  # Set max size for small screens
 
         self.steps = []
         self.current_step_index = 0
@@ -676,14 +677,15 @@ class InstallerGUI:
         """Show interactive device.wvd installation wizard with auto-detection"""
         window = Toplevel(self.root)
         window.title("Widevine Device Installation Wizard")
-        window.geometry("750x580")
-        window.minsize(700, 500)  # Set minimum size
+        window.geometry("800x600")
+        window.minsize(750, 550)  # Set minimum size
+        window.maxsize(1200, 800)  # Set max size for small screens
         window.transient(self.root)
         window.grab_set()
         window.lift()
         window.focus_force()
 
-        main_frame = ttk.Frame(window, padding="20")
+        main_frame = ttk.Frame(window, padding="10")
         main_frame.pack(fill=BOTH, expand=True)
 
         # Title
@@ -721,11 +723,15 @@ class InstallerGUI:
         private_key_label = ttk.Label(file_status_frame, text="❌ private_key.pem: Not found", font=("Arial", 9))
         private_key_label.pack(anchor=W, padx=20)
 
-        # Log area
+        # Buttons frame (pack BEFORE log area so it's always visible)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(side=BOTTOM, fill=X, pady=(10, 0))
+
+        # Log area (now packs AFTER buttons are positioned at bottom)
         log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
         log_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
 
-        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=10)
+        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=12)
         log_text.pack(fill=BOTH, expand=True)
 
         def log_message(msg):
@@ -816,10 +822,7 @@ class InstallerGUI:
                 status_label.config(text="⏳ Waiting for files to be placed in root directory", foreground="orange")
                 log_message("⏳ Waiting for both files...")
 
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=X, pady=(10, 0))
-
+        # Add buttons to the button_frame (already packed at bottom)
         ttk.Button(button_frame, text="🌐 Open Forum to Download Files",
                    command=lambda: [
                        webbrowser.open("https://forum.videohelp.com/threads/413719-Ready-to-use-CDMs-available-here"),
