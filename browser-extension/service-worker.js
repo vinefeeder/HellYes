@@ -142,8 +142,12 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
                 headerString += ` -H "${name}: ${escapedValue}"`;
             }
             storeTabData(tabId, 'headers', headers); // Store the raw headers object
-
-            let headerString = "";
+            storeTabData(tabId, 'headerString', headerString)
+            console.log("Matched Request Headers:", headers);
+            console.log("cURL headers part:", headerString);
+        }
+    },
+    { urls: ["<all_urls>"] },
     // Make sure to include "requestHeaders" (and "extraHeaders" if needed)
     ["requestHeaders"]
 );
@@ -208,7 +212,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 licenseUrl: tabData[tabId].licenseUrl || "",
                 bodyBase64: tabData[tabId].licenseBase64 || "", // The script expects bodyBase64
                 headers: tabData[tabId].headers || {},          // The script expects a dict
-                title: tabData[tabId].title || msg.title || "video",
+                title: msg.title || tabData[tabId].title || "video", // Prioritize user input
                 deleteMe: false
             };
 
