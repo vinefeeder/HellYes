@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateCheckboxStyle(manifestCheckbox, !!response.manifestUrl);
 
             // Check if cURL command is present
-            updateCheckboxStyle(curlCheckbox, !!response.licenseUrl);
+            updateCheckboxStyle(curlCheckbox, !!response.curlCommand);
 
             // Update button state initially
             updateButtonState();
