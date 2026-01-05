@@ -865,45 +865,173 @@ class InstallerGUI:
         window.after(3500, periodic_check)   # Start periodic checking after 3.5s
 
     def show_n_m3u8dl_re_instructions(self):
-        """Show instructions for N_m3u8DL-RE"""
+        """Show interactive N_m3u8DL-RE installation wizard with auto-detection"""
         window = Toplevel(self.root)
-        window.title("Manual Installation: N_m3u8DL-RE")
-        window.geometry("700x450")
+        window.title("N_m3u8DL-RE Installation Wizard")
+        window.geometry("800x550")
+        window.minsize(750, 500)
+        window.maxsize(1200, 800)
+        window.transient(self.root)
+        window.grab_set()
+        window.lift()
+        window.focus_force()
 
-        frame = ttk.Frame(window, padding="20")
-        frame.pack(fill=BOTH, expand=True)
+        main_frame = ttk.Frame(window, padding="10")
+        main_frame.pack(fill=BOTH, expand=True)
 
-        title = ttk.Label(frame, text="📖 N_m3u8DL-RE", font=("Arial", 14, "bold"))
+        # Title
+        title = ttk.Label(main_frame, text="📖 N_m3u8DL-RE", font=("Arial", 14, "bold"))
         title.pack(pady=(0, 10))
 
-        text = scrolledtext.ScrolledText(frame, wrap=WORD, font=("Arial", 10), height=15)
-        text.pack(fill=BOTH, expand=True)
+        # Instructions
+        inst_frame = ttk.LabelFrame(main_frame, text="📋 Instructions", padding="10")
+        inst_frame.pack(fill=X, pady=(0, 10))
 
-        instructions = """N_m3u8DL-RE is a command-line tool for downloading HLS/DASH streams.
+        bin_dir = Path("./bin").absolute()
+        inst_text = ttk.Label(inst_frame, text=(
+            f"Download N_m3u8DL-RE and place it in:\n"
+            f"  📁 {bin_dir}/N_m3u8DL-RE\n\n"
+            f"Platform-specific filenames:\n"
+            f"  • Linux: N_m3u8DL-RE_Beta_linux-x64\n"
+            f"  • Windows: N_m3u8DL-RE_Beta_win-x64.exe\n"
+            f"  • macOS: N_m3u8DL-RE_Beta_osx-x64\n\n"
+            f"The wizard will automatically detect when the file is placed."
+        ), font=("Arial", 9), justify=LEFT)
+        inst_text.pack(anchor=W)
 
-Installation Steps:
-  1. Visit: https://github.com/nilaoda/N_m3u8DL-RE/releases
-  2. Download the appropriate binary for your platform:
-     - Linux: N_m3u8DL-RE_Beta_linux-x64
-     - Windows: N_m3u8DL-RE_Beta_win-x64.exe
-     - macOS: N_m3u8DL-RE_Beta_osx-x64
-  3. Extract the executable
-  4. Rename it to: N_m3u8DL-RE (without extension on Linux/macOS)
-  5. Make it executable (Linux/macOS): chmod +x N_m3u8DL-RE
-  6. Place it in: ./bin/N_m3u8DL-RE
-     OR add it to your system PATH
+        # Status display
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(fill=X, pady=(0, 10))
 
-After installation, close this window and click "Re-check" to verify."""
+        status_label = ttk.Label(status_frame, text="🔍 Checking for N_m3u8DL-RE...", font=("Arial", 11, "bold"))
+        status_label.pack()
 
-        text.insert("1.0", instructions)
-        text.config(state=DISABLED)
+        # File status indicator
+        file_status_frame = ttk.Frame(main_frame)
+        file_status_frame.pack(fill=X, pady=(0, 10))
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=(10, 0))
+        file_label = ttk.Label(file_status_frame, text="❌ N_m3u8DL-RE: Not found", font=("Arial", 9))
+        file_label.pack(anchor=W, padx=20)
 
-        ttk.Button(btn_frame, text="Open GitHub Releases",
-                   command=lambda: webbrowser.open("https://github.com/nilaoda/N_m3u8DL-RE/releases")).pack(side=LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=window.destroy).pack(side=LEFT, padx=5)
+        # Buttons frame (pack at bottom first)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(side=BOTTOM, fill=X, pady=(10, 0))
+
+        # Log area
+        log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
+        log_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
+
+        log_text = scrolledtext.ScrolledText(log_frame, wrap=WORD, font=("Courier New", 9), height=10)
+        log_text.pack(fill=BOTH, expand=True)
+
+        def log_message(msg):
+            log_text.insert(END, msg + "\n")
+            log_text.see(END)
+            log_text.update()
+
+        def check_file():
+            """Check if N_m3u8DL-RE exists"""
+            log_message("Checking for N_m3u8DL-RE...")
+
+            # Check in bin/ directory
+            bin_path = Path("./bin/N_m3u8DL-RE")
+            system_path = DependencyInstaller.check_command('N_m3u8DL-RE')
+
+            if bin_path.exists():
+                file_label.config(text=f"✅ N_m3u8DL-RE: Found in ./bin/", foreground="green")
+                status_label.config(text="✅ N_m3u8DL-RE found!", foreground="green")
+                log_message(f"✅ Found: {bin_path.absolute()}")
+
+                # Check if executable
+                if not bin_path.stat().st_mode & 0o111:
+                    log_message("⚠️  File is not executable. Making it executable...")
+                    bin_path.chmod(bin_path.stat().st_mode | 0o111)
+                    log_message("✅ File is now executable")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "N_m3u8DL-RE":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ N_m3u8DL-RE has been found and configured!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            elif system_path:
+                file_label.config(text="✅ N_m3u8DL-RE: Found in system PATH", foreground="green")
+                status_label.config(text="✅ N_m3u8DL-RE found in system!", foreground="green")
+                log_message("✅ Found in system PATH")
+
+                # Update the main installer step
+                for step in self.steps:
+                    if step.name == "N_m3u8DL-RE":
+                        step.mark_complete(True)
+                        break
+
+                self.update_progress()
+
+                messagebox.showinfo(
+                    "Success!",
+                    "✅ N_m3u8DL-RE is installed in your system!\n\n"
+                    "The wizard will now close."
+                )
+                window.destroy()
+                return True
+
+            else:
+                file_label.config(text="❌ N_m3u8DL-RE: Not found", foreground="red")
+                status_label.config(text="⏳ Waiting for file to be placed in ./bin/", foreground="orange")
+                log_message(f"❌ Not found in: {bin_path.absolute()}")
+                log_message("❌ Not found in system PATH")
+                log_message("⏳ Waiting for file...")
+                return False
+
+        # Add buttons
+        ttk.Button(button_frame, text="🌐 Open GitHub Releases Page",
+                   command=lambda: [
+                       webbrowser.open("https://github.com/nilaoda/N_m3u8DL-RE/releases"),
+                       log_message("Opened GitHub releases in browser")
+                   ]).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="🔄 Check for File Now",
+                   command=check_file).pack(side=LEFT, padx=(0, 5))
+
+        ttk.Button(button_frame, text="❌ Close",
+                   command=window.destroy).pack(side=RIGHT)
+
+        # Periodic auto-check
+        auto_check_active = [True]
+
+        def periodic_check():
+            """Periodically check for file every 3 seconds"""
+            if auto_check_active[0] and window.winfo_exists():
+                try:
+                    if not DependencyInstaller.check_n_m3u8dl_re():
+                        check_file()
+                    window.after(3000, periodic_check)
+                except:
+                    pass
+
+        def on_close():
+            auto_check_active[0] = False
+            window.destroy()
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+
+        # Initial check
+        log_message("Wizard started.")
+        log_message(f"Target directory: {bin_dir}")
+        log_message("Auto-checking every 3 seconds for file...")
+        log_message("-" * 60)
+        window.after(500, check_file)
+        window.after(3500, periodic_check)
 
     def show_ffmpeg_instructions(self):
         """Show instructions for FFmpeg"""
