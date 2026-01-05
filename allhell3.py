@@ -38,7 +38,7 @@ def load_json_cfg(path):
 
     # --- new  --------------------------------------------------------
     hdrs_raw = cfg.get("headers", {})
-    if isinstance(hdrs_raw, str):                 # backward‑compat for old files
+    if isinstance(hdrs_raw, str):                 # backward-compat for old files
         hdrs = dict(re.findall(r"([^:]+):\s*([^;]+)", hdrs_raw))
     else:
         hdrs = hdrs_raw
@@ -52,23 +52,77 @@ def find_default_kid(text):                  # regex fallback
     m = re.search(r'cenc:default_KID="([A-F0-9-]+)"', text)
     return m.group(1) if m else None
 
-def extract_or_gen_pssh(mpd_text):
+def find_wv_pssh_offsets(raw: bytes) -> list:
+    offsets = []
+    offset = 0
+    while True:
+        offset = raw.find(b'pssh', offset)
+        if offset == -1:
+            break
+        size = int.from_bytes(raw[offset-4:offset], byteorder='big')
+        pssh_offset = offset - 4
+        offsets.append(raw[pssh_offset:pssh_offset+size])
+        offset += size
+    return offsets
+
+def to_pssh(content: bytes) -> list:
+    wv_offsets = find_wv_pssh_offsets(content)
+    return [base64.b64encode(wv_offset).decode() for wv_offset in wv_offsets]
+
+def extract_pssh_from_file(file_path: str) -> list:
+    return to_pssh(Path(file_path).read_bytes())
+
+def get_pssh_from_mpd(mpd_url):
+    print(colored("DEBUG: Attempting to extract PSSH via fragment (yt-dlp)...", "magenta"))
+    init = "init.m4f"
+    if os.path.exists(init): os.remove(init)
+
+    try:
+        subprocess.run([
+            'yt-dlp', '-q', '--no-warning', '--test', '--allow-u',
+            '-f', 'bestvideo[ext=mp4]/bestaudio[ext=m4a]/best',
+            '-o', init, mpd_url
+        ], check=True)
+    except Exception as e:
+        print(colored(f"WARN: yt-dlp failed: {e}", "yellow"))
+        return None
+
+    if not os.path.exists(init):
+        return None
+
+    pssh_list = extract_pssh_from_file(init)
+    os.remove(init)
+
+    for p in pssh_list:
+        if 20 < len(p) < 220:
+            return p
+    return None
+
+def extract_or_gen_pssh(mpd_url, mpd_text):
     ns = {'cenc':"urn:mpeg:cenc:2013", '':"urn:mpeg:dash:schema:mpd:2011"}
-    root = ET.fromstring(mpd_text)
+    try:
+        root = ET.fromstring(mpd_text)
+        # Widevine <ContentProtection>
+        for cp in root.findall(".//ContentProtection", ns):
+            if cp.attrib.get("schemeIdUri","").upper() == f"URN:UUID:{WIDEVINE_SYSTEM_ID}":
+                pssh_elem = cp.find("cenc:pssh", ns)
+                if pssh_elem is not None:
+                    return pssh_elem.text.strip()
+    except Exception:
+        pass
 
-    # Widevine <ContentProtection>
-    for cp in root.findall(".//ContentProtection", ns):
-        if cp.attrib.get("schemeIdUri","").upper() == f"URN:UUID:{WIDEVINE_SYSTEM_ID}":
-            pssh_elem = cp.find("cenc:pssh", ns)
-            if pssh_elem is not None:
-                return pssh_elem.text.strip()
-
-    # else: try default_KID
+    # fallback 1: default_KID
     kid = find_default_kid(mpd_text)
     if kid:
+        print(colored(f"DEBUG: Generating PSSH from default_KID: {kid}", "magenta"))
         kid = kid.replace("-","")
         blob = f"000000387073736800000000edef8ba979d64acea3c827dcd51d21ed000000181210{kid}48e3dc959b06"
         return base64.b64encode(bytes.fromhex(blob)).decode()
+
+    # fallback 2: download fragment
+    pssh = get_pssh_from_mpd(mpd_url)
+    if pssh:
+        return pssh
 
     sys.exit("✖ could not find PSSH or default_KID in MPD")
 
@@ -83,43 +137,68 @@ def get_keys(pssh_b64, url, headers, body_bytes):
     cdm   = Cdm.from_device(dev)
     ses   = cdm.open()
     challenge = cdm.get_license_challenge(ses, PSSH(pssh_b64))  # bytes
+    print(colored(f"DEBUG: Challenge generated ({len(challenge)} bytes)", "magenta"))
 
     # ------------ patch the original body -----------------------------------
-    # Convert raw bytes to a mutable latin‑1 string (1‑byte → 1‑char)
-    template = body_bytes.decode("latin1") if body_bytes else ""
-    patched  = None
+    # For maximum compatibility with allhell3o.py, we follow the same logic:
+    # Try text-based pattern matching first (for JSON/query-string wrapped challenges)
+    # Otherwise, send the original body unchanged (for binary protobuf wrappers like Nagra)
 
-    # Try the 3 patterns seen in Nagra / Adobe licence blobs
-    for pat, urlquote in [
-        (r'"(CAQ=.*?)"',        False),          # JSON value
-        (r'"(CAES.*?)"',        False),          # JSON value (alt)
-        (r'=(CAES.*?)(&|$)',    True),           # query‑string
-    ]:
-        m = re.search(pat, template)
-        if m:
-            repl = base64.b64encode(challenge).decode()
-            if urlquote:
-                repl = urllib.parse.quote_plus(repl)
-            patched = template.replace(m.group(1), repl)
-            break
+    payload_bytes = challenge  # Default: send raw challenge
 
-    # If none of the patterns matched, fall back to sending the raw challenge
-    payload_bytes = patched.encode("latin1") if patched else challenge
+    try:
+        # Try to decode as text to check for base64-encoded challenges
+        template = body_bytes.decode("utf-8") if body_bytes else ""
+
+        # Try the 3 patterns seen in some DRM providers (text-based wrappers)
+        for pat, urlquote in [
+            (r'"(CAQ=.*?)"',        False),          # JSON value
+            (r'"(CAES.*?)"',        False),          # JSON value (alt)
+            (r'=(CAES.*?)(&|$)',    True),           # query-string
+        ]:
+            m = re.search(pat, template)
+            if m:
+                print(colored(f"DEBUG: Text pattern found: {pat}", "magenta"))
+                repl = base64.b64encode(challenge).decode()
+                if urlquote:
+                    repl = urllib.parse.quote_plus(repl)
+                patched = template.replace(m.group(1), repl)
+                payload_bytes = patched.encode("utf-8")
+                break
+        else:
+            # No text pattern found - send raw challenge (same as allhell3o.py)
+            print(colored("DEBUG: No text pattern found. Sending raw challenge.", "magenta"))
+            payload_bytes = challenge
+    except UnicodeDecodeError:
+        # Body is binary and can't be decoded as text - send raw challenge
+        print(colored("DEBUG: Binary body. Sending raw challenge.", "magenta"))
+        payload_bytes = challenge
 
     # ------------ prepare headers -------------------------------------------
     hdrs = headers.copy()
     hdrs.pop("Content-Length", None)   # let httpx calculate correct size
     hdrs.pop("Host", None)             # httpx fills it
-    hdrs.setdefault("Content-Type", "application/octet-stream")
 
     # ------------ POST -------------------------------------------------------
-    resp = httpx.post(url, headers=hdrs, data=payload_bytes)
+    print(colored(f"DEBUG: Sending POST to {url}", "magenta"))
+    print(colored(f"DEBUG: Sending challenge via data= parameter ({len(challenge)} bytes)", "magenta"))
+    resp = httpx.post(url, headers=hdrs, data=challenge)
+
+    print(colored(f"DEBUG: Response Status: {resp.status_code}", "magenta"))
+    if resp.status_code != 200:
+        print(colored(f"DEBUG: Error in body: {resp.text[:200]}...", "red"))
+
     resp.raise_for_status()            # will raise if not 2xx/3xx
 
     # ------------ parse licence ---------------------------------------------
     content = resp.content
     if (m := re.search(r'"(CAIS.*?)"', resp.text)):
+        print(colored("DEBUG: License extracted from JSON field (CAIS...)", "magenta"))
         content = base64.b64decode(m.group(1))
+
+    # Ensure content is bytes (though base64.b64decode and resp.content are bytes)
+    if isinstance(content, str):
+        content = base64.b64decode(content)
 
     cdm.parse_license(ses, content)
     keys = [f"--key {k.kid.hex}:{k.key.hex()}"
@@ -133,24 +212,32 @@ if __name__ == "__main__":
     print(colored(banner, "green"))
 
     if len(sys.argv) < 2:
-        sys.exit("usage: allhell3.py  <json‑file‑from‑extension>")
+        sys.exit("usage: allhell3.py  <json-file-from-extension>")
 
     mpd, lic_url, headers, body, title, delete_me = load_json_cfg(sys.argv[1])
 
-    pssh = extract_or_gen_pssh(fetch(mpd))
+    pssh = extract_or_gen_pssh(mpd, fetch(mpd))
     print(colored(f"PSSH → {pssh}\n", "cyan"))
 
+    print(colored(f"lic_url → {lic_url}\n", "cyan"))
+    print(colored(f"headers → {headers}\n", "cyan"))
+    print(colored(f"body → {body}\n", "cyan"))
     keys = get_keys(pssh, lic_url, headers, body)
     print(colored("\n".join(keys) + "\n", "yellow"))
 
+    # Create downloads directory if it doesn't exist
+    downloads_dir = Path("downloads")
+    downloads_dir.mkdir(exist_ok=True)
+
     cmd = [
-        "N_m3u8DL-RE", mpd, *sum((k.split() for k in keys), []),
+        "bin/N_m3u8DL-RE", mpd, *sum((k.split() for k in keys), []),
         "--save-name", title,
+        "--save-dir", str(downloads_dir),
         "-M", "format=mkv:muxer=mkvmerge"
     ]
     print(colored(" ".join(cmd) + "\n", "green"))
 
-    input("↩  Enter to run, Ctrl‑C to abort … ")
+    input("↩  Enter to run, Ctrl-C to abort … ")
     subprocess.run(cmd)
 
     if delete_me:
