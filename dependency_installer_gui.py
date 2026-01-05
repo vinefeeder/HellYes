@@ -1216,11 +1216,22 @@ class InstallerGUI:
                 log_message("❌ No package manager available for installation")
                 return
 
+            # Ask for confirmation first
+            if not messagebox.askyesno(
+                "Install FFmpeg",
+                f"This will install FFmpeg using {detected_pm}.\n\n"
+                f"Command: {install_cmd}\n\n"
+                f"A terminal window will open to ask for your sudo password.\n\n"
+                f"Continue?"
+            ):
+                log_message("Installation cancelled by user")
+                return
+
             status_label.config(text="📦 Installing FFmpeg...", foreground="blue")
             log_message("=" * 60)
             log_message(f"Installing FFmpeg with {detected_pm}...")
             log_message(f"Running: {install_cmd}")
-            log_message("This may take a few moments and will require sudo password...")
+            log_message("A terminal window will open - please enter your sudo password there")
             log_message("=" * 60)
 
             # Disable install button during installation
@@ -1228,22 +1239,40 @@ class InstallerGUI:
 
             def run_install():
                 try:
-                    success, output = DependencyInstaller.run_command(install_cmd, shell=True)
-                    log_message(output)
+                    # Use a terminal to run the command so user can enter sudo password
+                    # Try different terminal emulators
+                    terminal_cmd = None
 
-                    if success:
-                        log_message("=" * 60)
-                        log_message("✅ Installation command completed successfully!")
-                        log_message("Checking for FFmpeg...")
-
-                        # Check if FFmpeg is now available
-                        window.after(1000, check_file)
+                    if DependencyInstaller.check_command('x-terminal-emulator'):
+                        terminal_cmd = f'x-terminal-emulator -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                    elif DependencyInstaller.check_command('gnome-terminal'):
+                        terminal_cmd = f'gnome-terminal -- bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                    elif DependencyInstaller.check_command('xterm'):
+                        terminal_cmd = f'xterm -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
+                    elif DependencyInstaller.check_command('konsole'):
+                        terminal_cmd = f'konsole -e bash -c "{install_cmd}; echo; echo Press ENTER to close...; read"'
                     else:
-                        log_message("=" * 60)
-                        log_message("❌ Installation command failed.")
-                        log_message("You may need to install FFmpeg manually.")
-                        status_label.config(text="❌ Installation failed", foreground="red")
+                        # Fallback: try to run without terminal (won't work for sudo)
+                        log_message("⚠️  No terminal emulator found. Attempting direct execution...")
+                        terminal_cmd = install_cmd
+
+                    log_message(f"Executing: {terminal_cmd}")
+
+                    success, output = DependencyInstaller.run_command(terminal_cmd, shell=True)
+
+                    if output.strip():
+                        log_message(output)
+
+                    log_message("=" * 60)
+                    log_message("Installation command executed.")
+                    log_message("Checking for FFmpeg...")
+                    log_message("=" * 60)
+
+                    # Wait a moment then check
+                    window.after(2000, lambda: [
+                        check_file(),
                         install_btn.config(state=NORMAL)
+                    ])
 
                 except Exception as e:
                     log_message(f"❌ Error during installation: {str(e)}")
