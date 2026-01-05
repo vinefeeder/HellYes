@@ -37,7 +37,7 @@ class ProcessingTab:
 
         # Create tab frame
         self.tab_frame = ttk.Frame(notebook)
-        self.tab_id = notebook.add(self.tab_frame, text=f"⏳ {filename[:30]}...")
+        notebook.add(self.tab_frame, text=f"⏳ {filename[:30]}...")
 
         # Create close button frame
         close_frame = ttk.Frame(self.tab_frame)
@@ -80,17 +80,25 @@ class ProcessingTab:
         self.log_text.see(END)
         self.log_text.update()
 
+    def get_tab_index(self):
+        """Get the current index of this tab by matching the tab_frame widget"""
+        try:
+            for i in range(self.notebook.index("end")):
+                if self.notebook.nametowidget(self.notebook.tabs()[i]) == self.tab_frame:
+                    return i
+        except:
+            pass
+        return None
+
     def close_tab(self):
         """Close this tab"""
         try:
-            # Find the actual index of this tab
-            for i in range(self.notebook.index("end")):
-                if self.notebook.tab(i, "text").endswith(self.filename[:30] + "..."):
-                    self.notebook.forget(i)
-                    # Remove from parent's active tabs list
-                    if self in self.parent_gui.active_tabs:
-                        self.parent_gui.active_tabs.remove(self)
-                    break
+            tab_index = self.get_tab_index()
+            if tab_index is not None:
+                self.notebook.forget(tab_index)
+                # Remove from parent's active tabs list
+                if self in self.parent_gui.active_tabs:
+                    self.parent_gui.active_tabs.remove(self)
         except Exception as e:
             print(f"Error closing tab: {e}")
 
@@ -99,12 +107,30 @@ class ProcessingTab:
         self.is_complete = True
         self.close_button.config(state=NORMAL)
 
-        if success:
-            self.notebook.tab(self.tab_id, text=f"✓ {self.filename[:30]}...")
-            self.status_label.config(text=f"✓ Complete: {self.filename}", foreground="green")
-        else:
-            self.notebook.tab(self.tab_id, text=f"✗ {self.filename[:30]}...")
-            self.status_label.config(text=f"✗ Failed: {self.filename}", foreground="red")
+        try:
+            # Get the tab index using the widget-based method
+            tab_index = self.get_tab_index()
+
+            if tab_index is not None:
+                if success:
+                    self.notebook.tab(tab_index, text=f"✓ {self.filename[:30]}...")
+                    self.status_label.config(text=f"✓ Complete: {self.filename}", foreground="green")
+                else:
+                    self.notebook.tab(tab_index, text=f"✗ {self.filename[:30]}...")
+                    self.status_label.config(text=f"✗ Failed: {self.filename}", foreground="red")
+            else:
+                # Fallback - just update status label if we can't find the tab
+                if success:
+                    self.status_label.config(text=f"✓ Complete: {self.filename}", foreground="green")
+                else:
+                    self.status_label.config(text=f"✗ Failed: {self.filename}", foreground="red")
+        except Exception as e:
+            print(f"Error marking complete: {e}")
+            # Fallback - just update status label
+            if success:
+                self.status_label.config(text=f"✓ Complete: {self.filename}", foreground="green")
+            else:
+                self.status_label.config(text=f"✗ Failed: {self.filename}", foreground="red")
 
     def start_processing(self):
         """Start the processing in a background thread"""
@@ -491,8 +517,10 @@ class AutoProcessorGUI:
             tab = ProcessingTab(self.notebook, filename, file_path, self.venv_python, self)
             self.active_tabs.append(tab)
 
-            # Switch to the new tab
-            self.notebook.select(tab.tab_id)
+            # Switch to the new tab using the widget-based index
+            tab_index = tab.get_tab_index()
+            if tab_index is not None:
+                self.notebook.select(tab_index)
 
             # Start processing
             tab.start_processing()
