@@ -119,15 +119,87 @@ class DependencyInstaller:
 
     @staticmethod
     def check_browser_manifest():
-        """Check if browser manifest is installed"""
+        """Check if browser manifest is installed and correctly configured"""
         if platform.system() == 'Windows':
-            # Windows uses registry, but we can check some common file locations
-            chrome_manifest = Path.home() / "AppData/Local/Google/Chrome/User Data/NativeMessagingHosts/org.hellyes.hellyes.json"
-            firefox_manifest = Path.home() / "AppData/Roaming/Mozilla/NativeMessagingHosts/org.hellyes.hellyes.json"
+            # Windows: Check registry entries
+            try:
+                import winreg
+
+                # Check Chrome registry
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\Google\Chrome\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+
+                    # Verify the manifest file exists and is valid
+                    if Path(manifest_path).exists():
+                        return True
+                except FileNotFoundError:
+                    pass
+
+                # Check Edge registry
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\Microsoft\Edge\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+
+                    if Path(manifest_path).exists():
+                        return True
+                except FileNotFoundError:
+                    pass
+
+                # Check Firefox registry
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\Mozilla\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+
+                    if Path(manifest_path).exists():
+                        return True
+                except FileNotFoundError:
+                    pass
+
+                # Check Brave registry
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+
+                    if Path(manifest_path).exists():
+                        return True
+                except FileNotFoundError:
+                    pass
+
+                return False
+            except ImportError:
+                # Fallback if winreg is not available
+                return False
         else:
+            # Linux/macOS: Check file locations
             chrome_manifest = Path.home() / ".config/google-chrome/NativeMessagingHosts/org.hellyes.hellyes.json"
+            chromium_manifest = Path.home() / ".config/chromium/NativeMessagingHosts/org.hellyes.hellyes.json"
             firefox_manifest = Path.home() / ".mozilla/native-messaging-hosts/org.hellyes.hellyes.json"
-        return chrome_manifest.exists() or firefox_manifest.exists()
+            brave_manifest = Path.home() / ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/org.hellyes.hellyes.json"
+
+            # Check if any manifest exists and is valid
+            for manifest in [chrome_manifest, chromium_manifest, firefox_manifest, brave_manifest]:
+                if manifest.exists():
+                    try:
+                        # Verify it's a valid JSON file
+                        import json
+                        with open(manifest, 'r') as f:
+                            data = json.load(f)
+                            # Check if it has the required fields
+                            if data.get("name") == "org.hellyes.hellyes" and data.get("path"):
+                                return True
+                    except:
+                        continue
+
+            return False
 
 
 class DependencyStep:
@@ -721,9 +793,35 @@ class InstallerGUI:
     def install_browser_manifest(self, step):
         """Install browser extension manifest"""
         step.log("Installing browser extension manifest...")
-        step.log("This step requires running the installation script...")
-        step.log("Please run: bash install/browsers.sh")
-        return False
+
+        if platform.system() == 'Windows':
+            step.log("Running Windows browser installer...")
+            python_cmd = 'python'
+            install_script = Path("install/browsers_windows.py")
+
+            if not install_script.exists():
+                step.log("❌ Error: install/browsers_windows.py not found!")
+                return False
+
+            # Run the Windows browser installer in silent mode (no prompts)
+            step.log("Installing with default extension ID (compiled extension)...")
+            success, output = DependencyInstaller.run_command(
+                [python_cmd, str(install_script), '--silent'],
+                shell=False
+            )
+            step.log(output)
+
+            if success:
+                step.log("✅ Browser manifest installation completed!")
+                return True
+            else:
+                step.log("⚠️ Browser manifest installation had issues")
+                return False
+        else:
+            # Linux/macOS
+            step.log("This step requires running the installation script...")
+            step.log("Please run: bash install/browsers.sh")
+            return False
 
     # Manual instruction dialogs
 
@@ -1572,49 +1670,6 @@ class InstallerGUI:
                 log_message("⏳ Waiting for file...")
                 return False
 
-        def install_with_package_manager():
-            """Install FFmpeg using detected package manager"""
-            if not detected_pm or not install_cmd:
-                log_message("❌ No package manager available for installation")
-                return
-
-            status_label.config(text="📦 Installing FFmpeg...", foreground="blue")
-            log_message("=" * 60)
-            log_message(f"Installing FFmpeg with {detected_pm}...")
-            log_message(f"Running: {install_cmd}")
-            log_message("This may take a few moments and will require sudo password...")
-            log_message("=" * 60)
-
-            # Disable install button during installation
-            install_btn.config(state=DISABLED)
-
-            def run_install():
-                try:
-                    success, output = DependencyInstaller.run_command(install_cmd, shell=True)
-                    log_message(output)
-
-                    if success:
-                        log_message("=" * 60)
-                        log_message("✅ Installation command completed successfully!")
-                        log_message("Checking for FFmpeg...")
-
-                        # Check if FFmpeg is now available
-                        window.after(1000, check_file)
-                    else:
-                        log_message("=" * 60)
-                        log_message("❌ Installation command failed.")
-                        log_message("You may need to install FFmpeg manually.")
-                        status_label.config(text="❌ Installation failed", foreground="red")
-                        install_btn.config(state=NORMAL)
-
-                except Exception as e:
-                    log_message(f"❌ Error during installation: {str(e)}")
-                    status_label.config(text="❌ Installation error", foreground="red")
-                    install_btn.config(state=NORMAL)
-
-            # Run installation in a thread to avoid blocking UI
-            threading.Thread(target=run_install, daemon=True).start()
-
         # Add buttons
         ttk.Button(button_frame, text="🌐 Open Bento4 Downloads Page",
                    command=lambda: [
@@ -1838,11 +1893,6 @@ class InstallerGUI:
 
         # Initial check
         log_message("Wizard started.")
-        if detected_pm:
-            log_message(f"Detected package manager: {detected_pm}")
-            log_message(f"Available command: {install_cmd}")
-        else:
-            log_message("No package manager detected - manual installation required")
         log_message(f"Target directory: {bin_dir}")
         log_message("Auto-checking every 3 seconds...")
         log_message("-" * 60)

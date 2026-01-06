@@ -399,6 +399,9 @@ class AutoProcessorGUI:
         self.main_log(f"Max parallel processes: {self.max_parallel}")
         self.main_log("Click 'Start Monitoring' to begin watching for JSON files")
 
+        # Check browser manifest on startup
+        self.check_browser_manifest_startup()
+
     def setup_ui(self):
         # Configure style
         style = ttk.Style()
@@ -551,6 +554,105 @@ class AutoProcessorGUI:
                 "Launch Error",
                 f"Failed to launch installer:\n{str(e)}"
             )
+
+    def check_browser_manifest(self):
+        """Check if browser native messaging host is properly configured"""
+        if platform.system() == 'Windows':
+            # Windows: Check registry entries
+            try:
+                import winreg
+
+                browsers_found = []
+
+                # Check Chrome
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\Google\Chrome\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+                    if Path(manifest_path).exists():
+                        browsers_found.append("Chrome")
+                except FileNotFoundError:
+                    pass
+
+                # Check Edge
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\Microsoft\Edge\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+                    if Path(manifest_path).exists():
+                        browsers_found.append("Edge")
+                except FileNotFoundError:
+                    pass
+
+                # Check Firefox
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\Mozilla\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+                    if Path(manifest_path).exists():
+                        browsers_found.append("Firefox")
+                except FileNotFoundError:
+                    pass
+
+                # Check Brave
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\org.hellyes.hellyes")
+                    manifest_path, _ = winreg.QueryValueEx(key, "")
+                    winreg.CloseKey(key)
+                    if Path(manifest_path).exists():
+                        browsers_found.append("Brave")
+                except FileNotFoundError:
+                    pass
+
+                return browsers_found
+            except ImportError:
+                return []
+        else:
+            # Linux/macOS: Check file locations
+            browsers_found = []
+
+            manifests = {
+                "Chrome": Path.home() / ".config/google-chrome/NativeMessagingHosts/org.hellyes.hellyes.json",
+                "Chromium": Path.home() / ".config/chromium/NativeMessagingHosts/org.hellyes.hellyes.json",
+                "Firefox": Path.home() / ".mozilla/native-messaging-hosts/org.hellyes.hellyes.json",
+                "Brave": Path.home() / ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/org.hellyes.hellyes.json",
+            }
+
+            for browser, manifest in manifests.items():
+                if manifest.exists():
+                    try:
+                        # Verify it's valid JSON with correct structure
+                        with open(manifest, 'r') as f:
+                            data = json.load(f)
+                            if data.get("name") == "org.hellyes.hellyes" and data.get("path"):
+                                browsers_found.append(browser)
+                    except:
+                        pass
+
+            return browsers_found
+
+    def check_browser_manifest_startup(self):
+        """Check browser manifest on application startup and show warning if not configured"""
+        browsers_found = self.check_browser_manifest()
+
+        if browsers_found:
+            self.main_log(f"✓ Browser native messaging configured for: {', '.join(browsers_found)}")
+        else:
+            self.main_log("⚠ WARNING: Browser native messaging host is NOT configured!")
+            self.main_log("  The browser extension will not work without this configuration.")
+            self.main_log("  Click 'Install Dependencies' to set it up.")
+
+            # Show a warning dialog
+            self.root.after(1000, lambda: messagebox.showwarning(
+                "Browser Extension Not Configured",
+                "Browser native messaging host is not configured!\n\n"
+                "The browser extension will not be able to communicate with this application.\n\n"
+                "Please click 'Install Dependencies' and complete the browser manifest installation step."
+            ))
 
     def toggle_auto_process(self):
         self.auto_process = self.auto_var.get()
