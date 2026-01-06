@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QTextEdit, QPushButton, QCheckBox, QFrame, QMessageBox
+    QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QTextEdit, QPushButton, QCheckBox, QFrame, QMessageBox, QHBoxLayout
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QPalette, QColor
@@ -17,10 +17,7 @@ from base64 import b64encode
 import codecs
 from pathlib import Path
 import os
-
-# Append your local bin directory to the PATH
-bin_path = os.path.join(os.getcwd(), "bin")
-os.environ["PATH"] += os.pathsep + bin_path
+import shlex
 
 WVD_PATH = "./device.wvd"
 WIDEVINE_SYSTEM_ID = 'EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED'
@@ -73,9 +70,13 @@ class AllHell3App(QWidget):
         self.fetch_keys_button.clicked.connect(self.fetch_keys)
         highlighted_layout.addWidget(self.fetch_keys_button)
 
-        self.download_button = QPushButton("Download Video")
+        self.download_button = QPushButton("Download Nm~RE")
         self.download_button.clicked.connect(self.download_video)
         highlighted_layout.addWidget(self.download_button)
+
+        self.download_button2 = QPushButton("Download DASH")
+        self.download_button2.clicked.connect(self.download_dash)
+        highlighted_layout.addWidget(self.download_button2)
 
         layout.addWidget(highlighted_frame)
 
@@ -92,13 +93,29 @@ class AllHell3App(QWidget):
         self.dash_mpd_cli_output = QTextEdit()
         layout.addWidget(self.dash_mpd_cli_output)
 
+        checkbox_layout = QHBoxLayout()
         self.dark_mode_checkbox = QCheckBox("Dark Mode")
         self.dark_mode_checkbox.setChecked(True)
         self.dark_mode_checkbox.stateChanged.connect(self.toggle_dark_mode)
-        layout.addWidget(self.dark_mode_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
+        checkbox_layout.addWidget(self.dark_mode_checkbox)
+
+        self.reset_button = QPushButton("Reset")
+        self.reset_button.clicked.connect(self.reset_fields)
+        checkbox_layout.addWidget(self.reset_button)
+
+        layout.addLayout(checkbox_layout)
 
         self.setLayout(layout)
         self.toggle_dark_mode()
+
+    def reset_fields(self):
+        self.mpd_url_entry.clear()
+        self.curl_text.clear()
+        self.video_name_entry.clear()
+        self.keys_output.clear()
+        self.n_m3u8dl_re_output.clear()
+        self.dash_mpd_cli_output.clear()
+
 
     def toggle_dark_mode(self):
         if self.dark_mode_checkbox.isChecked():
@@ -132,6 +149,12 @@ class AllHell3App(QWidget):
                                                 background-color: #4e4e4e;
                                                 border: 1px solid #6e6e6e;
                                                 padding: 5px;""")
+            
+            self.download_button2.setStyleSheet("""color: white;
+                                                background-color: #4e4e4e;
+                                                border: 1px solid #6e6e6e;
+                                                padding: 5px;""")
+            
             self.curl_text.setStyleSheet("""color: white; border: 1px solid red;
                                             background-color: #232323;""")
             self.video_name_label.setStyleSheet("""
@@ -156,6 +179,11 @@ class AllHell3App(QWidget):
                                                 background-color: #aeaeae;
                                                 border: 1px solid #6e6e6e;
                                                 padding: 5px;""")
+            self.download_button2.setStyleSheet("""color: black;
+                                                background-color: #aeaeae;
+                                                border: 1px solid #6e6e6e;
+                                                padding: 5px;""")
+            
             self.curl_text.setStyleSheet("""color: black; border: 1px solid red;
                                             background-color: white;""")
             self.video_name_label.setStyleSheet("""
@@ -380,20 +408,28 @@ class AllHell3App(QWidget):
             self.keys_output.append("\n".join( keys))
             key_str = " ".join(keys)
             
-            n_m3u8dl_re_command = f"N_m3u8DL-RE '{mpd_url}' {key_str} --save-name {self.video_name_entry.text()} -mt -M:format=mkv:muxer=mkvmerge"
-            self.n_m3u8dl_re_output.setText(n_m3u8dl_re_command)
+            self.n_m3u8dl_re_command = f"N_m3u8DL-RE '{mpd_url}' {key_str} --save-name {self.video_name_entry.text()} -mt -M:format=mkv:muxer=mkvmerge"
+            self.n_m3u8dl_re_output.setText(self.n_m3u8dl_re_command)
 
-            dash_mpd_cli_command = f"dash-mpd-cli --quality best --muxer-preference mkv:mkvmerge {key_str} \"{mpd_url}\" --output '{self.video_name_entry.text()}.mkv'"
+            self.dash_mpd_cli_command = f"dash-mpd-cli --quality best --muxer-preference mkv:mkvmerge {key_str} \"{mpd_url}\" --write-subs --output '{self.video_name_entry.text()}.mkv'"
 
-            self.dash_mpd_cli_output.setText(str(dash_mpd_cli_command))
+            self.dash_mpd_cli_output.setText(str(self.dash_mpd_cli_command))
 
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
     def download_video(self):
         try:
-            subprocess_command = eval(self.dash_mpd_cli_output.toPlainText())
-            self.thread = DownloadThread(subprocess_command)
+            self.thread = DownloadThread(shlex.split(self.n_m3u8dl_re_command))
+            self.thread.finished.connect(self.on_download_finished)
+            self.thread.error.connect(self.on_download_error)
+            self.thread.start()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def download_dash(self):
+        try:
+            self.thread = DownloadThread(shlex.split(self.dash_mpd_cli_command))
             self.thread.finished.connect(self.on_download_finished)
             self.thread.error.connect(self.on_download_error)
             self.thread.start()

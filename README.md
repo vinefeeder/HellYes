@@ -30,25 +30,29 @@ A generic L3 downloader for DRM content which comes in two versions
 
 *   allhell3.py
 *   allhell3gui.py
+*   gui.py
+
 
 Allhell3.py is coded for the all browsers (tested on Chrome, Firefox and Edge) and is supplied very nearly ready to download all media protected by widevine.
 You just need to provide a working Content Decryption Module and call it device.wvd and place it in the top level folder of HellYes
 
-allhell3gui.py is a Graphical User Interface version of allhell3.py.
+gui.py is the latest Graphical User Interface version of allhell3.py. allhell3gui.py is the original gui version.
 
   
 In use, the style of entering data is a little different. allhell3.py uses a paste _without echo to the screen_, and uses Ctrl+D (Linux) or Ctrl+Z (Windows) to signal the end of the cURL input.  
-allhell3gui.py uses a paste _with echo to the screen_, and uses button clicks to process data.  
+gui.py uses a paste _with echo to the screen_, and uses button clicks to process data.  
 Use whichever you like best on your system....  
-In both versions a downloader (N\_m3u8DL-RE) may be used to download the media.
+In both versions a downloader (N\_m3u8DL-RE) or Dash-mpd-cli may be used to download the media. Note that the dash-mpd-cli downloader will download subtitles as a separate file and it will NOT be muxed with the video.
 
-But either will need you to download some helper software.
+
+You will need you to download some helper software.
 
 ### Pre Use Instructions
 
 Install the following:
 
 *   See the code at [https://github.com/nilaoda/N\_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE), download the latest release. Unzip and save to a folder named 'binaries'. It can be anywhere on your system. So long as 'binaries' is in your Path.
+* s See the code at [https://github.com/emarsden/dash-mpd-cli/releases] for details of dash-mpd-cli downloader.
 *   Do the same with [ffmpeg](https://www.videohelp.com/software/ffmpeg) and [MKVToolNix](https://www.videohelp.com/software/MKVToolNix) etc.
 *   See [https://www.videohelp.com/software/ffmpeg](https://www.videohelp.com/software/ffmpeg) for more information about ffmpeg.
 *   See [https://www.videohelp.com/software/MKVToolNix](https://www.videohelp.com/software/MKVToolNix) for more information about MKVToolNix.
@@ -59,7 +63,7 @@ Install the following:
 
 You provide three bits of information taken from a web page and allhell3.py does the rest.
 
-You start a python script with 'python allhell3.py' written in a terminal or 'python3 allhell3gui.py'
+You start a python script with 'python allhell3.py' written in a terminal or 'python3 gui.py'
 
 But python scripts typically use modules that are imported to the script
 
@@ -76,7 +80,7 @@ On Linux You'll already know how to use xterm or whatever
 *   cURL of license server request
 *   Video name
 
-After you provide the data, it will download the video using N\_m3u8DL-RE, should you wish, finding keys in the process.
+After you provide the data, it will download the video using N\_m3u8DL-RE or dash-mpd-cli, should you wish, finding keys in the process.
 
 #### You Find
 
@@ -113,7 +117,7 @@ For example, open this image in a new tab to see it full size.
 
 Which 'copy as cURL' to use? Windows - choose 'Copy as cURL (Posix)' if available or 'Copy as cURL (bash)'
 
-If using allhell3.py.py terminate your paste command and tell the script to process the cURL by using Ctrl+Z (Windows) or Ctrl+D (Linux).  
+If using allhell3.py terminate your paste command and tell the script to process the cURL by using Ctrl+Z (Windows) or Ctrl+D (Linux).  
 Be prepared for the screen to write several blank lines, shifting existing text upwards rapidly.
 
 *   Video name
@@ -126,9 +130,11 @@ Running the script. ![Example pasting mpd](images/enter_mpd.png) ![curl pastes t
 
 Note carefully: allhell3.py.py uses Ctrl + D to enter the cURL on Linux and Ctrl + Z on Windows. Nothing prints to the screen until Ctrl+D or Z is pressed.
 
-#### Allhell3gui In action
+#### Allhell gui In action
 
-![Starting GUI](images/gui2.png) ![Populating Data](images/gui3.png) ![N_m3u8DL-RE running in terminal](images/gui4.png)
+![Starting GUI](images/gui2.png) ![Populating Data](images/gui3.png) ![N_m3u8DL-RE running in terminal](images/gui4.png) ![New Gui with reset and dash-mpd-cli download](images/gui5.png)
+
+)
 
 #### Coping with 'key too small' errors.
 
