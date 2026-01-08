@@ -1,0 +1,15 @@
+[project]
+name = "hellyes"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "pyfiglet>=1.0.4",
+    "pyqt6>=6.10.1",
+    "pyqt6-sip>=13.10.3",
+    "pywidevine>=1.9.0",
+    "termcolor>=3.3.0",
+    "yt-dlp>=2025.12.8",
+]
