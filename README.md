@@ -130,7 +130,7 @@ git clone https://github.com/vinefeeder/HellYes.git
 ```
 	uv lock
 	uv sync  
-	uv run gui.pu
+	uv run gui.py
 	or
 	uv run hell3.py
 	
