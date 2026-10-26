@@ -229,6 +229,7 @@ def parse_curl(curl_command):
     Returns:
     tuple: A tuple containing the URL, method, headers (as a dictionary), and data.
     """
+    curl_command = curl_command.strip().replace('--url ', '')  # Remove --url if present
     # Extract URL
     url_match = re.search(r"curl\s+'(.*?)'", curl_command)
     url = url_match.group(1) if url_match else ""

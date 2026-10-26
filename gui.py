@@ -401,7 +401,7 @@ class AllHell3App(QWidget):
                 QMessageBox.critical(self, "Error", "Failed to extract or generate PSSH\nAre you sure the video is Widevine encrypted?.")
                 return
 
-            curl_command = self.curl_text.toPlainText().strip()
+            curl_command = self.curl_text.toPlainText().strip().replace('--url ','')
             license_url, method, headers, data = self.parse_curl(curl_command)
             keys = self.get_key(pssh, license_url, headers, data)
             self.keys_output.clear()
